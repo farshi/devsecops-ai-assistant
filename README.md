@@ -1,1 +1,129 @@
 # devsecops-ai-assistant
+
+An AI layer on top of the DevSecOps pipeline. Instead of asking developers to read raw scanner output, this tool assembles repo context, runs security scanners, and uses Claude to produce actionable plans, reviews, and risk summaries.
+
+---
+
+## What It Does
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Developer                            │
+│                 writes code in  app/                        │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+              ┌────────────▼────────────┐
+              │     Context Builder     │
+              │  repo tree · deps       │
+              │  Dockerfile · Terraform │
+              │  CI workflows · diff    │
+              └────────────┬────────────┘
+                           │
+           ┌───────────────┼───────────────┐
+           │               │               │
+    ┌──────▼──────┐ ┌──────▼──────┐ ┌─────▼──────┐
+    │    Trivy    │ │   Checkov   │ │  (Semgrep  │
+    │  fs · image │ │  Terraform  │ │  Gitleaks) │
+    └──────┬──────┘ └──────┬──────┘ └─────┬──────┘
+           │               │               │
+           └───────────────▼───────────────┘
+                    JSON reports
+                  reports/*.json
+                           │
+              ┌────────────▼────────────┐
+              │       AI Layer          │
+              │       (Claude)          │
+              │                         │
+              │  prompt + context JSON  │
+              └────────────┬────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+┌───────▼──────┐  ┌────────▼───────┐  ┌──────▼────────┐
+│    analyze   │  │     scan       │  │    review     │
+│              │  │                │  │               │
+│ Understand   │  │ Triage scanner │  │ PASS/WARN/    │
+│ repo posture │  │ output into    │  │ BLOCK verdict │
+│ from static  │  │ prioritized    │  │ on a diff     │
+│ context      │  │ risk summary   │  │ before merge  │
+└──────────────┘  └────────────────┘  └───────────────┘
+        │                  │                  │
+        └──────────────────▼──────────────────┘
+                           │
+              ┌────────────▼────────────┐
+              │         plan            │
+              │                         │
+              │  Secure implementation  │
+              │  steps before code is   │
+              │  written  (shift left)  │
+              └────────────┬────────────┘
+                           │
+              ┌────────────▼────────────┐
+              │        Output           │
+              │                         │
+              │  reports/               │
+              │  plans/                 │
+              │  reviews/               │
+              └─────────────────────────┘
+```
+
+---
+
+## Four Workflows
+
+| Workflow | When | Input | Output |
+|---|---|---|---|
+| `analyze` | Onboarding a repo, quarterly review | repo path | `reports/analysis_*.md` |
+| `plan` | Before writing a feature | change description + repo | `plans/plan_*.md` |
+| `scan` | On push, scheduled | repo path | `reports/security-report.md` |
+| `review` | Before merging a PR | git diff + repo | `reviews/review_*.md` |
+
+---
+
+## Project Structure
+
+```
+devsecops-ai-assistant/
+├── agent/                  # Python orchestration layer
+│   ├── analyze.py          # analyze workflow
+│   ├── plan.py             # plan workflow
+│   ├── review.py           # review workflow
+│   ├── security_summary.py # scan workflow
+│   ├── context_builder.py  # assembles repo context for Claude
+│   └── claude_client.py    # Claude API wrapper
+│
+├── devsecops/
+│   ├── scanners/           # shell wrappers: run_trivy.sh, run_checkov.sh
+│   └── parsers/            # normalize raw JSON → shared findings schema
+│
+├── prompts/                # prompt templates per workflow
+│   ├── analyze.md
+│   ├── plan.md
+│   ├── review.md
+│   └── security_summary.md
+│
+├── app/                    # target project to scan (your code goes here)
+├── reports/                # scan output and AI summaries
+├── plans/                  # generated implementation plans
+└── reviews/                # generated code reviews
+```
+
+---
+
+## Scanners
+
+| Tool | What it scans | Trigger |
+|---|---|---|
+| Trivy (fs) | Dependencies, CVEs, misconfigs | Always |
+| Trivy (image) | Container base image CVEs | When Dockerfile is present |
+| Checkov | Terraform, GitHub Actions | When `.tf` or `.github/` is present |
+| Semgrep | SAST, custom rules | Coming soon |
+| Gitleaks | Hardcoded secrets | Coming soon |
+
+---
+
+## The Core Idea
+
+Security tools produce noise. Developers don't have time to read it.
+
+This project inserts an AI reasoning layer between scanner output and the developer — assembling only the relevant context, and producing output that answers one question: **what do I fix first, and how?**
