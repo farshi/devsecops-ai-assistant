@@ -122,6 +122,25 @@ devsecops-ai-assistant/
 
 ---
 
+## Running the CLI
+
+> Packaging is not yet configured. Until a `devsec` entry point is added, invoke the CLI directly:
+
+```bash
+pip install click
+
+python cli.py analyze  --path ./app --target-name myapp
+python cli.py scan     --path ./app --target-name myapp --profile standard
+python cli.py report   --target-name myapp
+python cli.py plan     --path ./app --target-name myapp --task "add auth endpoint"
+python cli.py review   --path ./app --target-name myapp --branch feature/auth
+
+# See what any command would do without running it
+python cli.py scan --path ./app --target-name myapp --dry-run
+```
+
+---
+
 ## The Core Idea
 
 Security tools produce noise. Developers don't have time to read it.
