@@ -1,7 +1,9 @@
 # Output directories — keep structure, ignore content
+analysis/*
 reports/*
 plans/*
 reviews/*
+!analysis/.gitkeep
 !reports/.gitkeep
 !plans/.gitkeep
 !reviews/.gitkeep
@@ -34,6 +36,9 @@ semgrep-results*.json
 gitleaks-report*.json
 .trivyignore
 .checkov.baseline
+
+# Temporary files (local only)
+tmp/
 
 # OS
 .DS_Store
