@@ -156,8 +156,12 @@ def report(target_name, dry_run):
         click.echo(f"    3. Claude response → {out}")
         return
 
-    # TODO: call agent.security_summary.report(target_slug)
-    click.echo("\n  [stub] report handler not implemented yet.")
+    from agent import security_summary
+    try:
+        report_file = security_summary.run(target_name, target_slug)
+        click.echo(f"\n  report written → {report_file}")
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise click.ClickException(str(exc))
 
 
 # ---------------------------------------------------------------------------

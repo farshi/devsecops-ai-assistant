@@ -69,13 +69,14 @@ An AI layer on top of the DevSecOps pipeline. Instead of asking developers to re
 
 ---
 
-## Four Workflows
+## Five Workflows
 
 | Workflow | When | Input | Output |
 |---|---|---|---|
 | `analyze` | Onboarding a repo, quarterly review | repo path | `reports/analysis_*.md` |
+| `scan` | On push, scheduled | repo path | `reports/<target>_summary_*.json` |
+| `report` | After scan — generate human report | target name | `reports/<target>_security-report_*.md` |
 | `plan` | Before writing a feature | change description + repo | `plans/plan_*.md` |
-| `scan` | On push, scheduled | repo path | `reports/security-report.md` |
 | `review` | Before merging a PR | git diff + repo | `reviews/review_*.md` |
 
 ---
@@ -85,25 +86,29 @@ An AI layer on top of the DevSecOps pipeline. Instead of asking developers to re
 ```
 devsecops-ai-assistant/
 ├── agent/                  # Python orchestration layer
-│   ├── analyze.py          # analyze workflow
-│   ├── plan.py             # plan workflow
-│   ├── review.py           # review workflow
-│   ├── security_summary.py # scan workflow
-│   ├── context_builder.py  # assembles repo context for Claude
-│   └── claude_client.py    # Claude API wrapper
+│   ├── scan.py             # scan orchestrator
+│   ├── security_summary.py # report generator (Claude)
+│   ├── analyze.py          # analyze workflow (stub)
+│   ├── plan.py             # plan workflow (stub)
+│   ├── review.py           # review workflow (stub)
+│   ├── context_builder.py  # assembles repo context for Claude (stub)
+│   ├── claude_client.py    # Anthropic SDK wrapper
+│   └── utils.py            # slugify, timestamp
 │
 ├── devsecops/
-│   ├── scanners/           # shell wrappers: run_trivy.sh, run_checkov.sh
-│   └── parsers/            # normalize raw JSON → shared findings schema
+│   ├── runners/            # Python scanner runners (run_trivy.py)
+│   ├── parsers/            # normalize raw JSON → v1 findings schema
+│   └── scanners/           # legacy shell wrappers (unused)
 │
-├── prompts/                # prompt templates per workflow
+├── prompts/                # system prompts loaded by agent/ code
+│   ├── security_summary.md
 │   ├── analyze.md
 │   ├── plan.md
-│   ├── review.md
-│   └── security_summary.md
+│   └── review.md
 │
-├── app/                    # target project to scan (your code goes here)
-├── reports/                # scan output and AI summaries
+├── tests/                  # pytest test suite
+├── sample_app/             # sample FastAPI app for scanner demos
+├── reports/                # scan JSON + AI-generated reports
 ├── plans/                  # generated implementation plans
 └── reviews/                # generated code reviews
 ```
@@ -127,7 +132,7 @@ devsecops-ai-assistant/
 > Packaging is not yet configured. Until a `devsec` entry point is added, invoke the CLI directly:
 
 ```bash
-pip install click
+pip install -r requirements.txt
 
 python cli.py analyze  --path ./app --target-name myapp
 python cli.py scan     --path ./app --target-name myapp --profile standard
