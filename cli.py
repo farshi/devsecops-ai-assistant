@@ -4,12 +4,15 @@ devsec — DevSecOps AI Assistant CLI
 Python orchestrates, scanners measure, Claude reasons.
 Claude reads summarized evidence by default, not raw scan dumps.
 
-Usage:
-    devsec analyze  --path ./app --target-name myapp
-    devsec scan     --path ./app --target-name myapp --profile standard
-    devsec report   --target-name myapp
-    devsec plan     --path ./app --target-name myapp --task "add auth"
-    devsec review   --path ./app --target-name myapp [--diff | --branch feature/x]
+Until packaging is added, invoke the CLI directly:
+    python cli.py analyze  --path ./app --target-name myapp
+    python cli.py scan     --path ./app --target-name myapp --profile standard
+    python cli.py report   --target-name myapp
+    python cli.py plan     --path ./app --target-name myapp --task "add auth"
+    python cli.py review   --path ./app --target-name myapp [--diff | --branch feature/x]
+
+Once installed as a package, the entrypoint becomes:
+    devsec <command> ...
 """
 
 import click
@@ -121,8 +124,9 @@ def scan(path, target_name, profile, dry_run):
         click.echo(f"    {len(scanners)+1}. parsers → {summary}  (Claude reads this)")
         return
 
-    # TODO: call agent.scan.run(path, target_slug, scanners)
-    click.echo("\n  [stub] scan handler not implemented yet.")
+    from agent import scan as scan_agent
+    summary_file = scan_agent.run(path, target_name, profile, scanners)
+    click.echo(f"\n  summary written → {summary_file}")
 
 
 # ---------------------------------------------------------------------------
