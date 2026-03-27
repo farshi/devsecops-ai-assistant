@@ -1,0 +1,58 @@
+# Output directories — keep structure, ignore content
+reports/*
+plans/*
+reviews/*
+!reports/.gitkeep
+!plans/.gitkeep
+!reviews/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Secrets & environment
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Scanner artifacts
+trivy-results*.json
+checkov-results*/
+semgrep-results*.json
+gitleaks-report*.json
+.trivyignore
+.checkov.baseline
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# GitHub artifacts
+.gh-artifacts/
+
+# Node (if sample_app uses it)
+node_modules/
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
