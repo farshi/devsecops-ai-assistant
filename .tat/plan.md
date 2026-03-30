@@ -243,6 +243,33 @@ Now that we have smart triage, add optional fix generation. This is a FEATURE of
 - **Why:** Clean sample_app finds nothing interesting. Need a demo that shows PatchPilot's value.
 - **Done when:** `patchpilot triage --path vulnerable_app/` produces a compelling triage output
 
+## Epic 7: Documentation
+
+Living documentation that explains what PatchPilot is, how it works, and the concepts behind it. Lives in `docs/` — not README (that's Epic 6.4 for marketing). This is the technical reference.
+
+### 7.1 Glossary and concepts
+- **What:** Define all key terms: EPSS, KEV, CVSS, reachability, finding types, priority tiers, VEX, CRA, SBOM
+- **Why:** Users and contributors need a shared vocabulary. Terms like "reachability" mean different things to different tools.
+- **File:** `docs/concepts.md`
+- **Done when:** Every term used in CLI output or reports is defined
+
+### 7.2 Architecture and data flow
+- **What:** Document how PatchPilot works end-to-end: scan → context → enrich → prioritize → report
+- **Include:** Data flow diagram, Finding schema lifecycle, plugin pipeline, what each module does
+- **File:** `docs/architecture.md`
+- **Done when:** A new contributor can understand the codebase from this doc alone
+
+### 7.3 Plugin development guide
+- **What:** How to write a custom plugin (scanner adapter, enrichment, scoring, formatter)
+- **Include:** ABC interfaces, example implementations, registration, testing
+- **File:** `docs/plugins.md`
+- **Done when:** Someone can write and register a Grype adapter from this doc
+
+### 7.4 Decision log summary
+- **What:** Human-readable summary of all ADRs and why they were made
+- **File:** `docs/decisions.md`
+- **Done when:** Links to all ADRs with one-line summaries and status
+
 ## Backlog
 - [ ] Checkov scanner integration (IaC scanning)
 - [ ] Gitleaks scanner integration (secret detection)
