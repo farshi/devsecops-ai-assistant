@@ -192,7 +192,11 @@ def report(target_name, path, top, dry_run):
 @click.option("--scan/--no-scan", default=True, show_default=True,
               help="Run scan first, or use existing summary.")
 @click.option("--dry-run", is_flag=True, help="Show what would run without executing.")
-def triage(path, target_name, top, profile, scan, dry_run):
+@click.option("--fail-on",
+              type=click.Choice(["critical", "high", "medium", "low"]),
+              default=None,
+              help="Exit with code 1 if findings at this tier or above exist. For CI gating.")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -227,6 +231,8 @@ def triage(path, target_name, top, profile, scan, dry_run):
         click.echo(f"    3. enrich findings (EPSS, KEV, fix availability)")
         click.echo(f"    4. score and rank findings")
         click.echo(f"    5. output top {top} action items")
+        if fail_on:
+            click.echo(f"    6. exit 1 if {fail_on}+ findings exist")
         return
 
     import glob
@@ -307,6 +313,23 @@ def triage(path, target_name, top, profile, scan, dry_run):
     click.echo(f"  Reports:")
     click.echo(f"    markdown → {report_file}")
     click.echo(f"    json     → {json_file}")
+
+    # CI exit code gating
+    if fail_on:
+        tier_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        threshold = tier_order[fail_on]
+
+        failed = False
+        for tier, count in summary.items():
+            if tier in tier_order and tier_order[tier] <= threshold and count > 0:
+                failed = True
+                break
+
+        if failed:
+            click.echo(f"  ⚠ FAILED: findings at '{fail_on}' level or above detected")
+            raise SystemExit(1)
+        else:
+            click.echo(f"  ✓ PASSED: no findings at '{fail_on}' level or above")
 
 
 # ---------------------------------------------------------------------------

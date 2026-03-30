@@ -133,3 +133,149 @@ def test_cli_group_help():
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "PatchPilot" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Helper to build a summary file and invoke triage with a mocked pipeline
+# ---------------------------------------------------------------------------
+
+def _make_summary_file(reports_dir, target_slug="test"):
+    summary_data = {
+        "scan_meta": {
+            "target": target_slug,
+            "date": "2026-03-30",
+            "scanners_run": ["trivy_fs"],
+            "total_findings": 5,
+        },
+        "findings": [],
+    }
+    summary_file = os.path.join(reports_dir, f"{target_slug}_summary_2026-03-30.json")
+    with open(summary_file, "w") as f:
+        json.dump(summary_data, f)
+    return summary_file
+
+
+def _make_triage_result(summary_override=None):
+    result = {
+        "triage": {
+            "total_findings": 5,
+            "top_n": 5,
+            "action_items": [],
+            "summary": summary_override or {"critical": 0, "high": 0, "medium": 0, "low": 0, "noise": 0},
+        },
+        "markdown": "# PatchPilot Triage Report\n\nTest output",
+    }
+    return result
+
+
+# ---------------------------------------------------------------------------
+# --fail-on tests
+# ---------------------------------------------------------------------------
+
+def test_triage_fail_on_critical_no_findings(tmp_path):
+    """--fail-on critical with no critical findings → exit 0, output PASSED."""
+    from unittest.mock import patch
+
+    reports_dir = os.path.join(os.getcwd(), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    summary_file = _make_summary_file(reports_dir)
+
+    triage_result = _make_triage_result({"critical": 0, "high": 0, "medium": 0, "low": 0, "noise": 0})
+
+    try:
+        runner = CliRunner()
+        with patch("agent.prioritizer.run_triage", return_value=triage_result):
+            result = runner.invoke(
+                cli,
+                ["triage", "--path", ".", "--target-name", "test", "--no-scan", "--fail-on", "critical"],
+            )
+        assert result.exit_code == 0, result.output
+        assert "PASSED" in result.output
+    finally:
+        if os.path.exists(summary_file):
+            os.remove(summary_file)
+
+
+def test_triage_fail_on_critical_with_findings(tmp_path):
+    """--fail-on critical with 1 critical finding → exit 1, output FAILED."""
+    from unittest.mock import patch
+
+    reports_dir = os.path.join(os.getcwd(), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    summary_file = _make_summary_file(reports_dir)
+
+    triage_result = _make_triage_result({"critical": 1, "high": 0, "medium": 0, "low": 0, "noise": 0})
+
+    try:
+        runner = CliRunner()
+        with patch("agent.prioritizer.run_triage", return_value=triage_result):
+            result = runner.invoke(
+                cli,
+                ["triage", "--path", ".", "--target-name", "test", "--no-scan", "--fail-on", "critical"],
+            )
+        assert result.exit_code == 1, result.output
+        assert "FAILED" in result.output
+    finally:
+        if os.path.exists(summary_file):
+            os.remove(summary_file)
+
+
+def test_triage_fail_on_high_includes_critical(tmp_path):
+    """--fail-on high with a critical finding → exit 1 (critical is above high threshold)."""
+    from unittest.mock import patch
+
+    reports_dir = os.path.join(os.getcwd(), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    summary_file = _make_summary_file(reports_dir)
+
+    triage_result = _make_triage_result({"critical": 1, "high": 0, "medium": 0, "low": 0, "noise": 0})
+
+    try:
+        runner = CliRunner()
+        with patch("agent.prioritizer.run_triage", return_value=triage_result):
+            result = runner.invoke(
+                cli,
+                ["triage", "--path", ".", "--target-name", "test", "--no-scan", "--fail-on", "high"],
+            )
+        assert result.exit_code == 1, result.output
+        assert "FAILED" in result.output
+    finally:
+        if os.path.exists(summary_file):
+            os.remove(summary_file)
+
+
+def test_triage_fail_on_medium_passes_with_only_low(tmp_path):
+    """--fail-on medium with only low findings → exit 0 (low is below medium threshold)."""
+    from unittest.mock import patch
+
+    reports_dir = os.path.join(os.getcwd(), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    summary_file = _make_summary_file(reports_dir)
+
+    triage_result = _make_triage_result({"critical": 0, "high": 0, "medium": 0, "low": 3, "noise": 0})
+
+    try:
+        runner = CliRunner()
+        with patch("agent.prioritizer.run_triage", return_value=triage_result):
+            result = runner.invoke(
+                cli,
+                ["triage", "--path", ".", "--target-name", "test", "--no-scan", "--fail-on", "medium"],
+            )
+        assert result.exit_code == 0, result.output
+        assert "PASSED" in result.output
+    finally:
+        if os.path.exists(summary_file):
+            os.remove(summary_file)
+
+
+def test_triage_fail_on_in_dry_run():
+    """--fail-on with --dry-run mentions the exit gating step, no real execution."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["triage", "--path", "./sample_app", "--target-name", "test", "--dry-run", "--fail-on", "critical"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Would run" in result.output
+    assert "critical" in result.output
+    assert "exit 1" in result.output
