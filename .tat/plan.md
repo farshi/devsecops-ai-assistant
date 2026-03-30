@@ -8,7 +8,7 @@ Goal: a user can run `patchpilot triage` and get a ranked, actionable list of wh
 |---|------|------|--------|
 | 1 | 3.2 Fix availability detection | E3 | [x] |
 | 2 | 3.1 Scoring model | E3 | [x] |
-| 3 | 3.3a Ranked triage output | E3 | [ ] |
+| 3 | 3.3a Ranked triage output | E3 | [x] |
 | 4 | 3.4 Wire triage CLI command | E3 | [ ] |
 | 5 | 4.1 Developer action plan | E4 | [ ] |
 | 6 | 7.1 Glossary (lightweight) | E7 | [ ] |
