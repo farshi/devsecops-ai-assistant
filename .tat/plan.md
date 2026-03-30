@@ -340,3 +340,5 @@ Living documentation that explains what PatchPilot is, how it works, and the con
 - [ ] Dependency license compliance checking
 - [ ] Historical trend tracking (are we getting more or less secure over time?)
 - [ ] Risk dashboards (needs UI — deferred until CLI value proven)
+- [ ] Finding ownership — "who should fix this?" based on git blame/CODEOWNERS (noted from GPT strategy review)
+- [ ] Ticket creation integration — create GitHub Issues / Jira tickets from triage output (noted from GPT strategy review)
