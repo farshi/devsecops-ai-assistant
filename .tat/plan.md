@@ -41,7 +41,7 @@ The brain needs context before it can prioritize. This epic builds the layer tha
 - **Test:** Run on `sample_app/`, verify it detects Python + FastAPI + Docker
 - **Done when:** Returns correct structure dict for sample_app
 
-### 2.2 Dependency graph extraction
+### 2.2 Dependency graph extraction ✅
 - **What:** Parse dependency files and build a list of direct vs transitive deps
 - **Input:** Repo path + detected languages from 2.1
 - **Output:** `{direct: ["fastapi==0.104.1", "uvicorn"], transitive: [...], lockfile_exists: true}`
