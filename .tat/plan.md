@@ -23,7 +23,7 @@ The brain needs context before it can prioritize. This epic builds the layer tha
 - **Test:** Parse Trivy output, verify Finding instances with correct `finding_type`
 - **Done when:** All existing scan output flows through Finding schema with correct types
 
-### 2.0b Plugin interface definitions (ADR-001)
+### 2.0b Plugin interface definitions (ADR-001) ✅
 - **What:** Define Python ABCs for all plugin types — no implementations beyond Trivy adapter yet
 - **Input:** N/A (interface design)
 - **Output:** `agent/plugins/base.py` with `ScannerAdapter`, `EnrichmentPlugin`, `PrioritizationStrategy`, `OutputFormatter` ABCs
