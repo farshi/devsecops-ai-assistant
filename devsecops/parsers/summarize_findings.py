@@ -8,6 +8,20 @@ SEVERITIES = ["critical", "high", "medium", "low", "info"]
 TOP_ISSUES_LIMIT = 5
 
 
+def _severity(f) -> str:
+    """Extract severity from a Finding object or a plain dict."""
+    if hasattr(f, "severity"):
+        return f.severity
+    return f.get("severity", "info")
+
+
+def _to_dict(f) -> dict:
+    """Serialize a Finding object or plain dict to a dict."""
+    if hasattr(f, "to_dict"):
+        return f.to_dict()
+    return f
+
+
 def build(
     target_name: str,
     target_slug: str,
@@ -16,26 +30,26 @@ def build(
     scanners_requested: list[str],
     scanners_run: list[str],
     scanners_skipped: list[dict],
-    findings_by_scanner: dict[str, list[dict]],
+    findings_by_scanner: dict[str, list],
     notes: list[str],
 ) -> dict:
     """
     Assemble the v1 summary.json structure.
 
-    findings_by_scanner : { "trivy_fs": [...], "checkov": [] }
+    findings_by_scanner : { "trivy_fs": [Finding, ...], "checkov": [] }
     scanners_skipped    : [ {"scanner": "checkov", "reason": "no .tf files"} ]
     """
     all_findings = [f for items in findings_by_scanner.values() for f in items]
 
     severity_counts = {s: 0 for s in SEVERITIES}
     for f in all_findings:
-        severity_counts[f.get("severity", "info")] += 1
+        severity_counts[_severity(f)] += 1
 
     # Top issues: sort by severity order, take first N
     severity_order = {s: i for i, s in enumerate(SEVERITIES)}
     sorted_findings = sorted(
         all_findings,
-        key=lambda f: severity_order.get(f.get("severity", "info"), 99),
+        key=lambda f: severity_order.get(_severity(f), 99),
     )
     top_issues = []
     for f in sorted_findings[:TOP_ISSUES_LIMIT]:
@@ -44,7 +58,7 @@ def build(
             (s for s, items in findings_by_scanner.items() if f in items),
             "unknown",
         )
-        top_issues.append({"scanner": scanner_label, **f})
+        top_issues.append({"scanner": scanner_label, **_to_dict(f)})
 
     risk_summary = _risk_summary(severity_counts, scanners_skipped)
 
@@ -64,7 +78,7 @@ def build(
         },
         "severity_counts": severity_counts,
         "top_issues":       top_issues,
-        "findings":         findings_by_scanner,
+        "findings":         {s: [_to_dict(f) for f in items] for s, items in findings_by_scanner.items()},
         "risk_summary":     risk_summary,
         "notes":            notes,
     }
