@@ -8,7 +8,7 @@ Usage:
 """
 
 import click
-from agent.utils import timestamp, slugify
+from agent.utils import timestamp, slugify, check_trivy_installed
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +116,16 @@ def scan(path, target_name, profile, dry_run):
             click.echo(f"    {i}. {scanner} → {out_file}")
         click.echo(f"    {len(scanners)+1}. parsers → {summary}  (Claude reads this)")
         return
+
+    if not check_trivy_installed():
+        raise click.ClickException(
+            "Trivy is not installed. PatchPilot requires Trivy for vulnerability scanning.\n\n"
+            "  Install Trivy:\n"
+            "    macOS:  brew install trivy\n"
+            "    Linux:  curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh\n"
+            "    Docker: docker run aquasec/trivy\n\n"
+            "  More info: https://aquasecurity.github.io/trivy/latest/getting-started/installation/"
+        )
 
     from agent import scan as scan_agent
     summary_file = scan_agent.run(path, target_name, profile, scanners)
@@ -242,6 +252,15 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on):
     # Step 1: Scan if requested
     summary_path = None
     if scan:
+        if not check_trivy_installed():
+            raise click.ClickException(
+                "Trivy is not installed. PatchPilot requires Trivy for vulnerability scanning.\n\n"
+                "  Install Trivy:\n"
+                "    macOS:  brew install trivy\n"
+                "    Linux:  curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh\n"
+                "    Docker: docker run aquasec/trivy\n\n"
+                "  More info: https://aquasecurity.github.io/trivy/latest/getting-started/installation/"
+            )
         scanners = PROFILE_SCANNERS[profile]
         click.echo(f"\n  [1/5] Scanning with profile '{profile}'...")
         from agent import scan as scan_agent
