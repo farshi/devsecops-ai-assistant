@@ -4,6 +4,8 @@ import os
 import re
 from typing import Optional
 
+from agent.models import Finding
+
 
 # Marker files to check for each language/tool category
 _MARKERS = [
@@ -546,3 +548,181 @@ def check_reachability(
             finding.reachability_evidence = "not imported in any .py file"
 
     return findings
+
+
+# ---------------------------------------------------------------------------
+# Context bundle builder
+# ---------------------------------------------------------------------------
+
+MAX_FINDINGS = 200  # Cap to prevent LLM context overflow
+
+
+def _findings_from_summary(summary: dict) -> list:
+    """Convert summary.json findings dict to a list of Finding objects.
+
+    Args:
+        summary: Parsed summary.json dict.
+
+    Returns:
+        List of Finding objects with source_scanner set from the scanner key.
+    """
+    findings = []
+    for scanner, finding_dicts in summary.get("findings", {}).items():
+        for fd in finding_dicts:
+            finding = Finding(
+                id=fd.get("id", "UNKNOWN"),
+                source_scanner=scanner,
+                finding_type="language_dep",  # default for v1; summary doesn't carry this
+                severity=fd.get("severity", "info"),
+                title=fd.get("title", ""),
+                package=fd.get("package"),
+                installed_version=fd.get("installed_version"),
+                fixed_version=fd.get("fixed_version") or fd.get("fix"),
+                location=fd.get("location", ""),
+                cvss_score=fd.get("cvss_score"),
+            )
+            findings.append(finding)
+    return findings
+
+
+def _apply_token_budget(findings: list, max_findings: int = MAX_FINDINGS) -> tuple:
+    """Trim findings to fit within token budget.
+
+    Strategy:
+    - Collapse duplicate CVEs (same id across multiple locations → keep one
+      with highest priority_score, noting the count).
+    - Sort by severity (critical first) then by priority_score descending.
+    - Keep top max_findings.
+
+    Returns:
+        (trimmed_findings, budget_info_dict)
+    """
+    _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
+    # --- Deduplicate by id ---
+    seen: dict[str, Finding] = {}
+    for f in findings:
+        if f.id not in seen:
+            seen[f.id] = f
+        else:
+            # Keep the one with higher priority_score
+            if f.priority_score > seen[f.id].priority_score:
+                seen[f.id] = f
+
+    deduplicated = list(seen.values())
+    total_findings = len(findings)
+    after_dedup = len(deduplicated)
+
+    # --- Sort: severity first, then priority_score descending ---
+    deduplicated.sort(
+        key=lambda f: (_SEVERITY_ORDER.get(f.severity, 99), -f.priority_score)
+    )
+
+    # --- Apply cap ---
+    trimmed = deduplicated[:max_findings]
+    included = len(trimmed)
+    truncated = included < after_dedup
+
+    budget_info = {
+        "total_findings": total_findings,
+        "included_findings": included,
+        "truncated": truncated,
+        "max_findings": max_findings,
+    }
+
+    return trimmed, budget_info
+
+
+def build_context(path: str, scan_summary_path: str) -> dict:
+    """Build the full context bundle for LLM consumption.
+
+    Orchestrates the entire context-building pipeline:
+    1. Load scan summary from JSON
+    2. Detect repo structure
+    3. Extract dependencies
+    4. Convert summary findings to Finding objects
+    5. Run reachability analysis
+    6. Run enrichment plugins (EPSS, KEV)
+    7. Apply token budgeting
+    8. Return the complete context bundle
+
+    Args:
+        path: Repo root path
+        scan_summary_path: Path to the summary.json from a scan
+
+    Returns:
+        {
+            "repo": {...},
+            "dependencies": {...},
+            "findings": [{...}, ...],
+            "scan_meta": {...},
+            "token_budget": {...},
+        }
+    """
+    # Step 1: Load scan summary
+    with open(scan_summary_path) as f:
+        summary = json.load(f)
+
+    # Step 2: Detect repo structure
+    structure = detect_repo_structure(path)
+
+    # Step 3: Extract dependencies
+    dependencies = extract_dependencies(path, structure)
+
+    # Step 4: Convert summary findings to Finding objects
+    findings = _findings_from_summary(summary)
+
+    # Step 5: Reachability analysis
+    check_reachability(path, findings, structure)
+
+    # Step 6: Enrichment (best-effort — network failures must not break pipeline)
+    try:
+        from agent.plugins.enrichment.epss import EPSSEnrichmentPlugin
+        EPSSEnrichmentPlugin().enrich(findings, {})
+    except Exception:
+        pass
+
+    try:
+        from agent.plugins.enrichment.kev import KEVEnrichmentPlugin
+        KEVEnrichmentPlugin().enrich(findings, {})
+    except Exception:
+        pass
+
+    # Step 7: Token budgeting
+    trimmed_findings, budget_info = _apply_token_budget(findings)
+
+    # Step 8: Assemble and return
+    scan = summary.get("scan", {})
+    severity_counts = summary.get("severity_counts", {})
+
+    repo = {
+        "languages": structure["languages"],
+        "frameworks": structure["frameworks"],
+        "runtime": structure["runtime"],
+        "has_ci": structure["has_ci"],
+        "has_iac": structure["has_iac"],
+    }
+
+    deps = {
+        "direct": dependencies["direct"],
+        "transitive": dependencies["transitive"],
+        "lockfile_exists": dependencies["lockfile_exists"],
+        "package_manager": dependencies["package_manager"],
+    }
+
+    scan_meta = {
+        "date": scan.get("date", ""),
+        "profile": scan.get("profile", "standard"),
+        "scanners_run": scan.get("scanners_run", []),
+        "scanners_skipped": scan.get("scanners_skipped", []),
+        "total_findings": budget_info["total_findings"],
+        "severity_counts": severity_counts,
+    }
+
+    return {
+        "repo": repo,
+        "dependencies": deps,
+        "findings": [f.to_dict() for f in trimmed_findings],
+        "scan_meta": scan_meta,
+        "token_budget": budget_info,
+    }
