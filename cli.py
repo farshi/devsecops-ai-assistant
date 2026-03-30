@@ -54,7 +54,7 @@ PROFILE_NOTES = {
 
 @click.group()
 def cli():
-    """DevSecOps AI Assistant — analyze, scan, report, plan, review."""
+    """PatchPilot — smart vulnerability triage for developers."""
     pass
 
 
@@ -162,6 +162,138 @@ def report(target_name, dry_run):
         click.echo(f"\n  report written → {report_file}")
     except (FileNotFoundError, RuntimeError) as exc:
         raise click.ClickException(str(exc))
+
+
+# ---------------------------------------------------------------------------
+# triage
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--path", required=True, help="Path to the project directory.")
+@click.option("--target-name", required=True, help="Name used for output file scoping.")
+@click.option("--top", default=5, show_default=True, help="Number of top findings to surface.")
+@click.option("--profile",
+              type=click.Choice(["quick", "standard", "full"]),
+              default="quick", show_default=True,
+              help="Scanner depth (used if scan needed).")
+@click.option("--scan/--no-scan", default=True, show_default=True,
+              help="Run scan first, or use existing summary.")
+@click.option("--dry-run", is_flag=True, help="Show what would run without executing.")
+def triage(path, target_name, top, profile, scan, dry_run):
+    """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
+
+    \b
+    Runs the full pipeline:
+      1. Scan (unless --no-scan, or summary already exists)
+      2. Build repo context (structure, deps, reachability)
+      3. Enrich findings (EPSS, KEV, fix availability)
+      4. Score and rank
+      5. Output top-N action items
+
+    \b
+    Examples:
+      python cli.py triage --path ./app --target-name myapp
+      python cli.py triage --path ./app --target-name myapp --top 3
+      python cli.py triage --path ./app --target-name myapp --no-scan
+    """
+    target_slug = slugify(target_name)
+
+    click.echo("[triage]")
+    click.echo(f"  target-name : {target_name}  (slug: {target_slug})")
+    click.echo(f"  path        : {path}")
+    click.echo(f"  top         : {top}")
+    click.echo(f"  profile     : {profile}")
+    click.echo(f"  scan        : {'yes' if scan else 'no (use existing summary)'}")
+    click.echo(f"  dry-run     : {dry_run}")
+
+    if dry_run:
+        click.echo("")
+        click.echo("  Would run:")
+        click.echo(f"    1. scan {path} with profile '{profile}'")
+        click.echo(f"    2. build context (repo structure, deps, reachability)")
+        click.echo(f"    3. enrich findings (EPSS, KEV, fix availability)")
+        click.echo(f"    4. score and rank findings")
+        click.echo(f"    5. output top {top} action items")
+        return
+
+    import glob
+    import json
+    import os
+
+    # Step 1: Scan if requested
+    summary_path = None
+    if scan:
+        scanners = PROFILE_SCANNERS[profile]
+        click.echo(f"\n  [1/5] Scanning with profile '{profile}'...")
+        from agent import scan as scan_agent
+        summary_path = scan_agent.run(path, target_name, profile, scanners)
+        click.echo(f"        summary → {summary_path}")
+    else:
+        # Find latest existing summary
+        pattern = f"reports/{target_slug}_summary_*.json"
+        matches = sorted(glob.glob(pattern))
+        if not matches:
+            raise click.ClickException(
+                f"No summary found for '{target_name}'. Run with --scan first."
+            )
+        summary_path = matches[-1]
+        click.echo(f"\n  [1/5] Using existing summary: {summary_path}")
+
+    # Steps 2-5: Run triage pipeline
+    click.echo("  [2/5] Building repo context...")
+    click.echo("  [3/5] Enriching findings...")
+    click.echo("  [4/5] Scoring and ranking...")
+
+    from agent.prioritizer import run_triage
+    result = run_triage(path, summary_path, top_n=top)
+
+    # Step 5: Output
+    triage_data = result["triage"]
+    markdown = result["markdown"]
+
+    # Save markdown report
+    os.makedirs("reports", exist_ok=True)
+    triage_ts = timestamp()
+    report_file = f"reports/{target_slug}_triage_{triage_ts}.md"
+    with open(report_file, "w") as f:
+        f.write(markdown)
+
+    # Save JSON triage data
+    json_file = f"reports/{target_slug}_triage_{triage_ts}.json"
+    with open(json_file, "w") as f:
+        json.dump(result["triage"], f, indent=2)
+
+    click.echo(f"  [5/5] Triage complete!")
+    click.echo("")
+
+    # Print summary to stdout
+    click.echo(f"  Total findings: {triage_data['total_findings']}")
+    summary = triage_data.get("summary", {})
+    if any(summary.values()):
+        click.echo(f"  Priority breakdown: {summary.get('critical', 0)} critical, "
+                    f"{summary.get('high', 0)} high, {summary.get('medium', 0)} medium, "
+                    f"{summary.get('low', 0)} low, {summary.get('noise', 0)} noise")
+    click.echo("")
+
+    # Print top action items
+    items = triage_data.get("action_items", [])
+    if items:
+        click.echo(f"  Top {len(items)} action items:")
+        click.echo("")
+        for item in items:
+            tier = item["priority_tier"].upper()
+            score = item["priority_score"]
+            click.echo(f"    #{item['rank']} [{tier}] {item['id']} (score: {score})")
+            click.echo(f"       {item['title'][:80]}")
+            click.echo(f"       Action: {item['action']}")
+            click.echo(f"       Effort: {item['effort']}")
+            click.echo("")
+    else:
+        click.echo("  No actionable findings found.")
+
+    click.echo(f"  Reports:")
+    click.echo(f"    markdown → {report_file}")
+    click.echo(f"    json     → {json_file}")
 
 
 # ---------------------------------------------------------------------------
