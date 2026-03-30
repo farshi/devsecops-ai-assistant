@@ -83,7 +83,7 @@ The brain needs context before it can prioritize. This epic builds the layer tha
 - **Test:** Given a known CVE with EPSS data, verify score is populated. Given a KEV-listed CVE, verify `in_kev=True`.
 - **Done when:** Findings have EPSS and KEV data populated, enrichment plugins pass tests
 
-### 2.4 Full context bundle (with token budgeting)
+### 2.4 Full context bundle (with token budgeting) ✅
 - **What:** Combine repo structure + deps + reachability into one context object passed to the LLM
 - **Input:** All outputs from 2.1, 2.2, 2.3 + scan summary
 - **Output:** A single JSON context bundle: `{repo: {...}, dependencies: {...}, findings: [Finding, ...], scan_meta: {...}}`
