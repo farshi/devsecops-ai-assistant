@@ -14,7 +14,7 @@
 
 The brain needs context before it can prioritize. This epic builds the layer that understands what a repo actually IS — not just what the scanner found.
 
-### 2.0 Finding schema + type classifier (ADR-002, ADR-004)
+### 2.0 Finding schema + type classifier (ADR-002, ADR-004) ✅
 - **What:** Define canonical `Finding` dataclass and finding type classifier
 - **Input:** Raw scanner output (any format)
 - **Output:** `Finding` dataclass instances with `finding_type` set (os_package | language_dep | iac_misconfig | secret | code_pattern)
