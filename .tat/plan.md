@@ -6,7 +6,7 @@ Goal: a user can run `patchpilot triage` and get a ranked, actionable list of wh
 
 | # | Task | Epic | Status |
 |---|------|------|--------|
-| 1 | 3.2 Fix availability detection | E3 | [ ] |
+| 1 | 3.2 Fix availability detection | E3 | [x] |
 | 2 | 3.1 Scoring model | E3 | [ ] |
 | 3 | 3.3a Ranked triage output | E3 | [ ] |
 | 4 | 3.4 Wire triage CLI command | E3 | [ ] |
