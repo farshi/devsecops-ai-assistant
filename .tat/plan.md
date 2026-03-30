@@ -50,7 +50,7 @@ The brain needs context before it can prioritize. This epic builds the layer tha
 - **Test:** Run on `sample_app/`, verify it finds fastapi, uvicorn etc.
 - **Done when:** Returns accurate dependency list with direct/transitive distinction
 
-### 2.3 Import reachability signal (ADR-003)
+### 2.3 Import reachability signal (ADR-003) ✅
 - **What:** For each finding's package, check if it's actually imported in the codebase
 - **Input:** Dependency list + list of Finding instances from scan
 - **Output:** Each Finding gets `reachable`, `reachability_confidence` fields set
