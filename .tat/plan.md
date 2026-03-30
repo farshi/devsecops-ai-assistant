@@ -11,7 +11,7 @@ Goal: a user can run `patchpilot triage` and get a ranked, actionable list of wh
 | 3 | 3.3a Ranked triage output | E3 | [x] |
 | 4 | 3.4 Wire triage CLI command | E3 | [x] |
 | 5 | 4.1 Developer action plan | E4 | [x] |
-| 6 | 7.1 Glossary (lightweight) | E7 | [ ] |
+| 6 | 7.1 Glossary (lightweight) | E7 | [x] |
 
 ### Sprint 2 — Credibility + Adoption
 | # | Task | Epic |
