@@ -1,10 +1,17 @@
 """Tests for agent/context_builder.py — detect_repo_structure()."""
 import json
 import os
+from unittest.mock import patch
 
 import pytest
 
-from agent.context_builder import detect_repo_structure, extract_dependencies, check_reachability
+from agent.context_builder import (
+    detect_repo_structure,
+    extract_dependencies,
+    check_reachability,
+    build_context,
+    MAX_FINDINGS,
+)
 from agent.models import Finding
 
 # ---------------------------------------------------------------------------
@@ -349,3 +356,185 @@ def test_reachability_skips_venv(tmp_path):
     finding = _make_finding(package="secret-pkg")
     results = check_reachability(str(tmp_path), [finding], structure)
     assert results[0].reachable == "false"
+
+
+# ---------------------------------------------------------------------------
+# build_context tests
+# ---------------------------------------------------------------------------
+
+MINIMAL_SUMMARY = {
+    "version": "1",
+    "target": {"name": "test", "slug": "test", "path": "/tmp"},
+    "scan": {
+        "date": "2026-03-27",
+        "profile": "standard",
+        "scanners_requested": ["trivy_fs"],
+        "scanners_run": ["trivy_fs"],
+        "scanners_skipped": [],
+    },
+    "severity_counts": {"critical": 1, "high": 0, "medium": 0, "low": 0, "info": 0},
+    "top_issues": [],
+    "findings": {
+        "trivy_fs": [
+            {
+                "id": "CVE-2024-0001",
+                "severity": "critical",
+                "title": "Test vuln",
+                "location": "requirements.txt > pkg@1.0",
+                "fix": "Upgrade to 2.0",
+            }
+        ]
+    },
+    "risk_summary": "1 critical finding",
+    "notes": [],
+}
+
+
+def _write_summary(tmp_path, summary=None) -> str:
+    """Write summary JSON to tmp_path and return the file path string."""
+    data = summary if summary is not None else MINIMAL_SUMMARY
+    summary_path = tmp_path / "summary.json"
+    summary_path.write_text(json.dumps(data))
+    return str(summary_path)
+
+
+def _make_repo(tmp_path):
+    """Create a minimal Python repo with one source file."""
+    (tmp_path / "requirements.txt").write_text("fastapi==0.110.0\n")
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\napp = FastAPI()\n")
+
+
+@patch("agent.plugins.enrichment.epss.EPSSEnrichmentPlugin.enrich", return_value=[])
+@patch("agent.plugins.enrichment.kev.KEVEnrichmentPlugin.enrich", return_value=[])
+def test_build_context_basic(mock_kev, mock_epss, tmp_path):
+    """build_context returns all required top-level keys."""
+    _make_repo(tmp_path)
+    summary_path = _write_summary(tmp_path)
+    result = build_context(str(tmp_path), summary_path)
+    assert set(result.keys()) == {"repo", "dependencies", "findings", "scan_meta", "token_budget"}
+
+
+@patch("agent.plugins.enrichment.epss.EPSSEnrichmentPlugin.enrich", return_value=[])
+@patch("agent.plugins.enrichment.kev.KEVEnrichmentPlugin.enrich", return_value=[])
+def test_build_context_findings_are_dicts(mock_kev, mock_epss, tmp_path):
+    """Findings in output are dicts (serialized), not Finding objects."""
+    _make_repo(tmp_path)
+    summary_path = _write_summary(tmp_path)
+    result = build_context(str(tmp_path), summary_path)
+    assert isinstance(result["findings"], list)
+    for f in result["findings"]:
+        assert isinstance(f, dict), f"Expected dict, got {type(f)}"
+
+
+@patch("agent.plugins.enrichment.epss.EPSSEnrichmentPlugin.enrich", return_value=[])
+@patch("agent.plugins.enrichment.kev.KEVEnrichmentPlugin.enrich", return_value=[])
+def test_build_context_scan_meta(mock_kev, mock_epss, tmp_path):
+    """scan_meta contains expected fields from the summary."""
+    _make_repo(tmp_path)
+    summary_path = _write_summary(tmp_path)
+    result = build_context(str(tmp_path), summary_path)
+    meta = result["scan_meta"]
+    assert meta["date"] == "2026-03-27"
+    assert meta["profile"] == "standard"
+    assert meta["scanners_run"] == ["trivy_fs"]
+    assert meta["total_findings"] == 1
+    assert meta["severity_counts"]["critical"] == 1
+
+
+@patch("agent.plugins.enrichment.epss.EPSSEnrichmentPlugin.enrich", return_value=[])
+@patch("agent.plugins.enrichment.kev.KEVEnrichmentPlugin.enrich", return_value=[])
+def test_build_context_token_budget_no_truncation(mock_kev, mock_epss, tmp_path):
+    """Small finding count → truncated=False, included_findings equals total."""
+    _make_repo(tmp_path)
+    summary_path = _write_summary(tmp_path)
+    result = build_context(str(tmp_path), summary_path)
+    budget = result["token_budget"]
+    assert budget["truncated"] is False
+    assert budget["included_findings"] == budget["total_findings"]
+    assert budget["max_findings"] == MAX_FINDINGS
+
+
+@patch("agent.plugins.enrichment.epss.EPSSEnrichmentPlugin.enrich", return_value=[])
+@patch("agent.plugins.enrichment.kev.KEVEnrichmentPlugin.enrich", return_value=[])
+def test_build_context_token_budget_truncation(mock_kev, mock_epss, tmp_path):
+    """250+ findings → only MAX_FINDINGS kept, truncated=True."""
+    _make_repo(tmp_path)
+    # Generate 250 unique findings
+    many_findings = [
+        {
+            "id": f"CVE-2024-{i:04d}",
+            "severity": "high",
+            "title": f"Vuln {i}",
+            "location": f"requirements.txt > pkg{i}@1.0",
+        }
+        for i in range(250)
+    ]
+    summary = {**MINIMAL_SUMMARY, "findings": {"trivy_fs": many_findings}}
+    summary_path = _write_summary(tmp_path, summary)
+    result = build_context(str(tmp_path), summary_path)
+    budget = result["token_budget"]
+    assert budget["truncated"] is True
+    assert budget["included_findings"] == MAX_FINDINGS
+    assert len(result["findings"]) == MAX_FINDINGS
+
+
+@patch("agent.plugins.enrichment.epss.EPSSEnrichmentPlugin.enrich", return_value=[])
+@patch("agent.plugins.enrichment.kev.KEVEnrichmentPlugin.enrich", return_value=[])
+def test_build_context_deduplicates_cves(mock_kev, mock_epss, tmp_path):
+    """Same CVE appearing 3 times → collapsed to 1 in output."""
+    _make_repo(tmp_path)
+    dup_findings = [
+        {"id": "CVE-2024-DUPE", "severity": "high", "title": "Dupe vuln", "location": f"file{i}.txt > pkg@1.0"}
+        for i in range(3)
+    ]
+    summary = {**MINIMAL_SUMMARY, "findings": {"trivy_fs": dup_findings}}
+    summary_path = _write_summary(tmp_path, summary)
+    result = build_context(str(tmp_path), summary_path)
+    # Should only have one entry for the duplicated CVE
+    ids = [f["id"] for f in result["findings"]]
+    assert ids.count("CVE-2024-DUPE") == 1
+    # token_budget total_findings still reflects original count
+    assert result["token_budget"]["total_findings"] == 3
+
+
+def test_build_context_enrichment_failure_doesnt_crash(tmp_path):
+    """EPSS/KEV plugins raising exceptions must not break build_context."""
+    _make_repo(tmp_path)
+    summary_path = _write_summary(tmp_path)
+    with (
+        patch("agent.plugins.enrichment.epss.EPSSEnrichmentPlugin.enrich", side_effect=RuntimeError("network down")),
+        patch("agent.plugins.enrichment.kev.KEVEnrichmentPlugin.enrich", side_effect=RuntimeError("network down")),
+    ):
+        result = build_context(str(tmp_path), summary_path)
+    # Still returns a valid context bundle
+    assert set(result.keys()) == {"repo", "dependencies", "findings", "scan_meta", "token_budget"}
+
+
+REAL_SUMMARY_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "reports", "notes-api_summary_2026-03-27.json"
+)
+SAMPLE_APP_DIR = os.path.join(os.path.dirname(__file__), "..", "sample_app")
+
+
+@patch("agent.plugins.enrichment.epss.EPSSEnrichmentPlugin.enrich", return_value=[])
+@patch("agent.plugins.enrichment.kev.KEVEnrichmentPlugin.enrich", return_value=[])
+def test_build_context_on_sample_app(mock_kev, mock_epss):
+    """Integration: run build_context against real sample_app/ and summary.json."""
+    result = build_context(SAMPLE_APP_DIR, REAL_SUMMARY_PATH)
+    assert set(result.keys()) == {"repo", "dependencies", "findings", "scan_meta", "token_budget"}
+    # Repo should detect Python + fastapi
+    assert "python" in result["repo"]["languages"]
+    assert "fastapi" in result["repo"]["frameworks"]
+    # Dependencies should be populated
+    assert len(result["dependencies"]["direct"]) > 0
+    # scan_meta should have expected fields
+    meta = result["scan_meta"]
+    assert "date" in meta
+    assert "scanners_run" in meta
+    assert "severity_counts" in meta
+    # token_budget should have required keys
+    budget = result["token_budget"]
+    assert "total_findings" in budget
+    assert "included_findings" in budget
+    assert "truncated" in budget
+    assert budget["truncated"] is False  # 0 findings in this summary
