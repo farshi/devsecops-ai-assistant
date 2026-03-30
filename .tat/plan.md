@@ -32,7 +32,7 @@ The brain needs context before it can prioritize. This epic builds the layer tha
 - **Test:** Trivy adapter implements ScannerAdapter ABC, passes existing tests
 - **Done when:** Plugin interfaces defined, Trivy adapter refactored as reference implementation
 
-### 2.1 Repo structure detection
+### 2.1 Repo structure detection ✅
 - **What:** Scan the repo and detect project type, language, framework, runtime
 - **Input:** Repo path
 - **Output:** Structured dict: `{languages: ["python"], frameworks: ["fastapi"], runtime: "docker", has_ci: true, has_iac: false}`
