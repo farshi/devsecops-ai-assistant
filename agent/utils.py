@@ -3,7 +3,13 @@ Shared utility helpers for the devsec agent layer.
 """
 
 import re
+import shutil
 from datetime import datetime, timezone
+
+
+def check_trivy_installed() -> bool:
+    """Check if trivy binary is available on PATH."""
+    return shutil.which("trivy") is not None
 
 
 def timestamp() -> str:

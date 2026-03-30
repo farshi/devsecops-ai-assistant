@@ -279,3 +279,17 @@ def test_triage_fail_on_in_dry_run():
     assert "Would run" in result.output
     assert "critical" in result.output
     assert "exit 1" in result.output
+
+
+def test_triage_missing_trivy_gives_clear_error():
+    """When trivy is not installed, triage should give a clear install message."""
+    from unittest.mock import patch
+
+    runner = CliRunner()
+    with patch("cli.check_trivy_installed", return_value=False):
+        result = runner.invoke(cli, [
+            "triage", "--path", ".", "--target-name", "test"
+        ])
+        assert result.exit_code != 0
+        assert "Trivy is not installed" in result.output
+        assert "brew install trivy" in result.output
