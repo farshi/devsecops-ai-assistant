@@ -21,7 +21,7 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
     date        = timestamp()
     os.makedirs("reports", exist_ok=True)
 
-    findings_by_scanner: dict[str, list[dict]] = {}
+    findings_by_scanner: dict[str, list] = {}
     scanners_run:        list[str]              = []
     scanners_skipped:    list[dict]             = []
     notes:               list[str]              = []
