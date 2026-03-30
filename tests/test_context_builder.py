@@ -4,7 +4,8 @@ import os
 
 import pytest
 
-from agent.context_builder import detect_repo_structure, extract_dependencies
+from agent.context_builder import detect_repo_structure, extract_dependencies, check_reachability
+from agent.models import Finding
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -232,3 +233,119 @@ def test_on_sample_app():
     expected = ["fastapi", "uvicorn", "pydantic", "httpx", "pytest"]
     for pkg in expected:
         assert any(d.lower().startswith(pkg) for d in direct), f"{pkg} not found in direct deps"
+
+
+# ---------------------------------------------------------------------------
+# check_reachability tests
+# ---------------------------------------------------------------------------
+
+def _make_finding(**kwargs) -> Finding:
+    """Create a minimal Finding with sensible defaults."""
+    defaults = dict(
+        id="CVE-2024-test",
+        source_scanner="trivy_fs",
+        finding_type="language_dep",
+        severity="high",
+        title="Test vulnerability",
+        package="test-pkg",
+    )
+    defaults.update(kwargs)
+    return Finding(**defaults)
+
+
+def test_reachability_imported_package(tmp_path):
+    """fastapi is in PACKAGE_IMPORT_MAP; import present → high confidence, reachable=true."""
+    (tmp_path / "requirements.txt").write_text("fastapi==0.110.0\n")
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\napp = FastAPI()\n")
+    structure = detect_repo_structure(str(tmp_path))
+    finding = _make_finding(package="fastapi")
+    results = check_reachability(str(tmp_path), [finding], structure)
+    assert results[0].reachable == "true"
+    assert results[0].reachability_confidence == "high"
+    assert "app.py" in results[0].reachability_evidence
+
+
+def test_reachability_not_imported(tmp_path):
+    """Package not imported; not in map → medium confidence, reachable=false."""
+    (tmp_path / "requirements.txt").write_text("unused-pkg==1.0\n")
+    (tmp_path / "app.py").write_text("print('hello')\n")
+    structure = detect_repo_structure(str(tmp_path))
+    finding = _make_finding(package="unused-pkg")
+    results = check_reachability(str(tmp_path), [finding], structure)
+    assert results[0].reachable == "false"
+    assert results[0].reachability_confidence == "medium"
+    assert results[0].reachability_evidence == "not imported in any .py file"
+
+
+def test_reachability_known_mismatch(tmp_path):
+    """pyyaml → yaml mapping confirmed; import yaml found → high confidence."""
+    (tmp_path / "requirements.txt").write_text("pyyaml==6.0\n")
+    (tmp_path / "config.py").write_text("import yaml\ndata = yaml.safe_load('{}')\n")
+    structure = detect_repo_structure(str(tmp_path))
+    finding = _make_finding(package="pyyaml")
+    results = check_reachability(str(tmp_path), [finding], structure)
+    assert results[0].reachable == "true"
+    assert results[0].reachability_confidence == "high"
+    assert "config.py" in results[0].reachability_evidence
+
+
+def test_reachability_os_package_skipped(tmp_path):
+    """os_package findings are not modified."""
+    structure = detect_repo_structure(str(tmp_path))
+    finding = _make_finding(
+        finding_type="os_package",
+        package="openssl",
+        reachable="not_applicable",
+        reachability_confidence="none",
+    )
+    results = check_reachability(str(tmp_path), [finding], structure)
+    assert results[0].reachable == "not_applicable"
+    assert results[0].reachability_confidence == "none"
+
+
+def test_reachability_from_import(tmp_path):
+    """from pydantic import BaseModel → pydantic is reachable."""
+    (tmp_path / "models.py").write_text("from pydantic import BaseModel\nclass M(BaseModel): pass\n")
+    structure = detect_repo_structure(str(tmp_path))
+    finding = _make_finding(package="pydantic")
+    results = check_reachability(str(tmp_path), [finding], structure)
+    assert results[0].reachable == "true"
+
+
+def test_reachability_submodule_import(tmp_path):
+    """from google.cloud.storage import Client → google-cloud-storage reachable."""
+    (tmp_path / "storage.py").write_text("from google.cloud.storage import Client\n")
+    structure = detect_repo_structure(str(tmp_path))
+    finding = _make_finding(package="google-cloud-storage")
+    results = check_reachability(str(tmp_path), [finding], structure)
+    assert results[0].reachable == "true"
+    assert results[0].reachability_confidence == "high"
+
+
+def test_reachability_on_sample_app():
+    """Integration: fastapi is imported in sample_app/main.py."""
+    structure = detect_repo_structure(SAMPLE_APP_DIR)
+    fastapi_finding = _make_finding(package="fastapi")
+    results = check_reachability(SAMPLE_APP_DIR, [fastapi_finding], structure)
+    assert results[0].reachable == "true"
+    assert results[0].reachability_confidence == "high"
+
+
+def test_reachability_empty_findings(tmp_path):
+    """Empty findings list returns empty list without crashing."""
+    structure = detect_repo_structure(str(tmp_path))
+    results = check_reachability(str(tmp_path), [], structure)
+    assert results == []
+
+
+def test_reachability_skips_venv(tmp_path):
+    """Imports inside venv/ are not counted as reachable."""
+    venv_dir = tmp_path / "venv" / "lib" / "python3.12" / "site-packages" / "mypkg"
+    venv_dir.mkdir(parents=True)
+    (venv_dir / "__init__.py").write_text("import secret_pkg\n")
+    # No real source file imports secret_pkg
+    (tmp_path / "app.py").write_text("print('nothing here')\n")
+    structure = detect_repo_structure(str(tmp_path))
+    finding = _make_finding(package="secret-pkg")
+    results = check_reachability(str(tmp_path), [finding], structure)
+    assert results[0].reachable == "false"
