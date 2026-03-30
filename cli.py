@@ -135,15 +135,28 @@ def scan(path, target_name, profile, dry_run):
 
 @cli.command()
 @click.option("--target-name", required=True, help="Must match the target-name used in scan.")
+@click.option("--path", default=None, help="Project path. If provided, uses triage-based report.")
+@click.option("--top", default=5, show_default=True, help="Top findings to include (triage mode).")
 @click.option("--dry-run",     is_flag=True,  help="Show what would run without executing.")
-def report(target_name, dry_run):
-    """Generate AI security report from latest scan results."""
+def report(target_name, path, top, dry_run):
+    """Generate AI security report from scan results.
+
+    \b
+    With --path: uses the triage pipeline for a prioritized action plan.
+    Without --path: uses raw summary for a traditional security report.
+    """
     target_slug  = slugify(target_name)
     summary_glob = f"reports/{target_slug}_summary_*.json"
     out          = output_path("reports", target_slug, "_security-report.md")
 
     click.echo("[report]")
     click.echo(f"  target-name : {target_name}  (slug: {target_slug})")
+    if path:
+        click.echo(f"  path        : {path}")
+        click.echo(f"  top         : {top}")
+        click.echo(f"  mode        : triage-based (prioritized action plan)")
+    else:
+        click.echo(f"  mode        : raw summary (traditional report)")
     click.echo(f"  reads       : {summary_glob}  (latest match)")
     click.echo(f"  output      : {out}")
     click.echo(f"  dry-run     : {dry_run}")
@@ -152,13 +165,20 @@ def report(target_name, dry_run):
         click.echo("")
         click.echo("  Would run:")
         click.echo(f"    1. load {summary_glob} (latest)")
-        click.echo(f"    2. prompts/security_summary.md + summary → Claude")
-        click.echo(f"    3. Claude response → {out}")
+        if path:
+            click.echo(f"    2. run_triage({path}, summary, top={top}) → ranked findings")
+            click.echo(f"    3. prompts/security_summary.md + triage → Claude")
+        else:
+            click.echo(f"    2. prompts/security_summary.md + summary → Claude")
+        click.echo(f"    {3 if path else 3}. Claude response → {out}")
         return
 
     from agent import security_summary
     try:
-        report_file = security_summary.run(target_name, target_slug)
+        if path:
+            report_file = security_summary.run_with_triage(target_name, target_slug, path, top)
+        else:
+            report_file = security_summary.run(target_name, target_slug)
         click.echo(f"\n  report written → {report_file}")
     except (FileNotFoundError, RuntimeError) as exc:
         raise click.ClickException(str(exc))
