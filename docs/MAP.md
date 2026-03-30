@@ -16,14 +16,14 @@ README.md             ← marketing overview (if user-facing change)
 
 | Spec Section | → Doc File | → Doc Section | Last Synced |
 |---|---|---|---|
-| What PatchPilot Does (core workflow) | `concepts.md` | Overview | — |
-| What PatchPilot Is NOT | `concepts.md` | What PatchPilot Isn't | — |
+| What PatchPilot Does (core workflow) | `concepts.md` | Overview | 2026-03-30 |
+| What PatchPilot Is NOT | `concepts.md` | What PatchPilot Isn't | 2026-03-30 |
 | Target User | `concepts.md` | Who It's For | — |
 | Core Principles | `concepts.md` | Design Principles | — |
-| Canonical Finding Schema (ADR-002) | `concepts.md` | Finding Schema | — |
-| Finding Types (ADR-004) | `concepts.md` | Finding Types | — |
-| Reachability Approach (ADR-003) | `concepts.md` | Reachability | — |
-| Competitive Positioning (ADR-005) | `concepts.md` | Positioning | — |
+| Canonical Finding Schema (ADR-002) | `concepts.md` | Finding | 2026-03-30 |
+| Finding Types (ADR-004) | `concepts.md` | Finding Types | 2026-03-30 |
+| Reachability Approach (ADR-003) | `concepts.md` | Reachability | 2026-03-30 |
+| Competitive Positioning (ADR-005) | `concepts.md` | How PatchPilot Compares | 2026-03-30 |
 | Target Architecture | `architecture.md` | Project Structure | — |
 | Target Architecture | `architecture.md` | Data Flow | — |
 | Extensibility Model (ADR-001) | `architecture.md` | Plugin Pipeline | — |
