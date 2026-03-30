@@ -1,18 +1,10 @@
 """
-devsec — DevSecOps AI Assistant CLI
+PatchPilot — smart vulnerability triage for developers.
 
-Python orchestrates, scanners measure, Claude reasons.
-Claude reads summarized evidence by default, not raw scan dumps.
-
-Until packaging is added, invoke the CLI directly:
-    python cli.py analyze  --path ./app --target-name myapp
-    python cli.py scan     --path ./app --target-name myapp --profile standard
-    python cli.py report   --target-name myapp
-    python cli.py plan     --path ./app --target-name myapp --task "add auth"
-    python cli.py review   --path ./app --target-name myapp [--diff | --branch feature/x]
-
-Once installed as a package, the entrypoint becomes:
-    devsec <command> ...
+Usage:
+    patchpilot scan     --path ./app --target-name myapp
+    patchpilot triage   --path ./app --target-name myapp
+    patchpilot report   --target-name myapp
 """
 
 import click
@@ -53,6 +45,7 @@ PROFILE_NOTES = {
 # ---------------------------------------------------------------------------
 
 @click.group()
+@click.version_option(version=__import__("agent").__version__, prog_name="patchpilot")
 def cli():
     """PatchPilot — smart vulnerability triage for developers."""
     pass
