@@ -1,8 +1,6 @@
 # Plan
 
-## Current Sprint: Sprint 1 — MVP Triage (first user value)
-
-Goal: a user can run `patchpilot triage` and get a ranked, actionable list of what to fix.
+## Sprint 1 — MVP Triage ✅ (complete)
 
 | # | Task | Epic | Status |
 |---|------|------|--------|
@@ -13,23 +11,31 @@ Goal: a user can run `patchpilot triage` and get a ranked, actionable list of wh
 | 5 | 4.1 Developer action plan | E4 | [x] |
 | 6 | 7.1 Glossary (lightweight) | E7 | [x] |
 
-### Sprint 2 — Credibility + Adoption
-| # | Task | Epic |
-|---|------|------|
-| 7 | 6.5 Vulnerable sample app | E6 |
-| 8 | 3.3b LLM narrative enhancement | E3 |
-| 9 | 4.4 Config and policy | E4 |
-| 10 | 6.1 Packaging (pip install) | E6 |
-| 11 | 6.3 CI exit codes | E6 |
+## Current Sprint: Sprint 2 — v0.1.0 Release (install, run, trust, demo)
 
-### Sprint 3 — Compliance + Polish
+Goal: `pip install patchpilot && patchpilot triage --path ./app` works end-to-end. Tagged v0.1.0 release.
+
+| # | Task | Epic | Status |
+|---|------|------|--------|
+| 1 | 6.1 Packaging — pyproject.toml + entry point + version | E6 | [ ] |
+| 2 | 6.3 CI exit codes — --fail-on flag | E6 | [ ] |
+| 3 | R.1 Trivy binary error handling (graceful missing-tool error) | Release | [ ] |
+| 4 | 6.5 Vulnerable sample app (compelling demo) | E6 | [ ] |
+| 5 | R.2 End-to-end CLI test (installed patchpilot path) | Release | [ ] |
+| 6 | 6.4 README rewrite (PatchPilot positioning + install + demo) | E6 | [ ] |
+| 7 | R.3 Release metadata — CHANGELOG + LICENSE + CLAUDE.md cleanup | Release | [ ] |
+| 8 | R.4 Tag v0.1.0 + GitHub release | Release | [ ] |
+
+### Sprint 3 — Credibility + Features
 | # | Task | Epic |
 |---|------|------|
-| 12 | 4.2 CRA disclosure format | E4 |
-| 13 | 4.3 State and baseline tracking | E4 |
-| 14 | 5.1 LLM provider abstraction | E5 |
-| 15 | 7.2-7.4 Remaining docs | E7 |
-| 16 | 6.2-6.4 GitHub Actions + README | E6 |
+| 9 | 3.3b LLM narrative enhancement | E3 |
+| 10 | 4.4 Config and policy | E4 |
+| 11 | 4.2 CRA disclosure format | E4 |
+| 12 | 4.3 State and baseline tracking | E4 |
+| 13 | 5.1 LLM provider abstraction | E5 |
+| 14 | 7.2-7.4 Remaining docs | E7 |
+| 15 | 6.2 GitHub Actions template | E6 |
 
 ---
 
