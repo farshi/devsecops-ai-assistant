@@ -2,6 +2,7 @@ import glob
 import json
 import os
 import re
+from typing import Optional
 
 
 # Marker files to check for each language/tool category
@@ -372,3 +373,176 @@ def extract_dependencies(path: str, structure: dict) -> dict:
         "package_manager": package_manager,
         "raw": raw,
     }
+
+
+# ---------------------------------------------------------------------------
+# Reachability analysis
+# ---------------------------------------------------------------------------
+
+# PyPI package name → Python import name
+# Only for packages where they differ from their PyPI name
+PACKAGE_IMPORT_MAP = {
+    "pillow": "PIL",
+    "pyyaml": "yaml",
+    "beautifulsoup4": "bs4",
+    "opencv-python": "cv2",
+    "opencv-python-headless": "cv2",
+    "scikit-learn": "sklearn",
+    "scikit-image": "skimage",
+    "python-dateutil": "dateutil",
+    "python-dotenv": "dotenv",
+    "python-jose": "jose",
+    "python-multipart": "multipart",
+    "attrs": "attr",
+    "google-cloud-storage": "google.cloud.storage",
+    "google-cloud-bigquery": "google.cloud.bigquery",
+    "google-auth": "google.auth",
+    "protobuf": "google.protobuf",
+    "mysql-connector-python": "mysql.connector",
+    "psycopg2-binary": "psycopg2",
+    "psycopg2": "psycopg2",
+    "pymongo": "pymongo",
+    "redis": "redis",
+    "celery": "celery",
+    "boto3": "boto3",
+    "botocore": "botocore",
+    "cryptography": "cryptography",
+    "paramiko": "paramiko",
+    "requests": "requests",
+    "urllib3": "urllib3",
+    "aiohttp": "aiohttp",
+    "httpx": "httpx",
+    "flask": "flask",
+    "django": "django",
+    "fastapi": "fastapi",
+    "uvicorn": "uvicorn",
+    "gunicorn": "gunicorn",
+    "starlette": "starlette",
+    "pydantic": "pydantic",
+    "sqlalchemy": "sqlalchemy",
+    "alembic": "alembic",
+    "pytest": "pytest",
+    "numpy": "numpy",
+    "pandas": "pandas",
+    "scipy": "scipy",
+    "matplotlib": "matplotlib",
+    "tensorflow": "tensorflow",
+    "torch": "torch",
+    "transformers": "transformers",
+    "jinja2": "jinja2",
+    "markupsafe": "markupsafe",
+    "werkzeug": "werkzeug",
+    "click": "click",
+}
+
+# Directories to skip when searching Python source files
+_SKIP_DIRS = frozenset(
+    {"__pycache__", ".git", "node_modules", ".venv", "venv", ".tox", ".eggs"}
+)
+
+
+def _find_import(path: str, import_name: str) -> Optional[tuple]:
+    """Search for import of import_name in all .py files under path.
+
+    Handles direct imports, from-imports, and submodule from-imports.
+    Skips common non-source directories.
+
+    Returns (filepath_relative_to_path, line_number) of first match, or None.
+    """
+    # Build regex: matches `import <name>` or `from <name>` (space or dot after name)
+    pattern = re.compile(
+        r"^\s*(import\s+" + re.escape(import_name) + r"|from\s+" + re.escape(import_name) + r"[\s.])"
+    )
+
+    for dirpath, dirnames, filenames in os.walk(path):
+        # Prune skip dirs in-place so os.walk doesn't descend into them
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not d.endswith(".egg-info")]
+
+        for filename in filenames:
+            if not filename.endswith(".py"):
+                continue
+            filepath = os.path.join(dirpath, filename)
+            try:
+                with open(filepath, encoding="utf-8", errors="replace") as fh:
+                    for lineno, line in enumerate(fh, start=1):
+                        if pattern.match(line):
+                            rel = os.path.relpath(filepath, path)
+                            return rel, lineno
+            except OSError:
+                continue
+    return None
+
+
+def check_reachability(
+    path: str,
+    findings: list,
+    structure: dict,
+) -> list:
+    """Check if each finding's package is actually imported in the codebase.
+
+    Mutates findings in-place: sets reachable, reachability_confidence,
+    reachability_evidence on each Finding.
+
+    Only analyzes language_dep findings (Python only for v1). OS packages,
+    IaC findings, secrets, and code_pattern findings are left unchanged.
+
+    Args:
+        path: Repo root path to search for .py files.
+        findings: List of Finding objects.
+        structure: Output from detect_repo_structure() (unused in v1, reserved).
+
+    Returns:
+        The same (mutated) findings list.
+    """
+    # Guard: only analyze if Python is detected in the repo
+    languages = structure.get("languages", [])
+    is_python_repo = "python" in languages
+
+    for finding in findings:
+        if finding.finding_type != "language_dep":
+            # Leave as-is (scanner adapter should have set not_applicable already)
+            continue
+
+        # If not a Python repo, we can't determine reachability for Python deps
+        if not is_python_repo:
+            finding.reachable = "unknown"
+            finding.reachability_confidence = "none"
+            finding.reachability_evidence = "reachability analysis not available for this ecosystem"
+            continue
+
+        # Normalise the package name: lowercase, strip version specifiers and extras
+        raw_pkg = (finding.package or "").lower().strip()
+        # Strip extras like [security] before other processing
+        raw_pkg = re.sub(r"\[.*?\]", "", raw_pkg)
+        # Strip version specifiers like ==, >=, ~=, !=, <=, >  <
+        pkg_name = re.split(r"[><=!~;@\s]", raw_pkg)[0].strip()
+
+        if not pkg_name:
+            finding.reachable = "unknown"
+            finding.reachability_confidence = "none"
+            finding.reachability_evidence = "package name could not be determined"
+            continue
+
+        # Determine import name and confidence
+        if pkg_name in PACKAGE_IMPORT_MAP:
+            import_name = PACKAGE_IMPORT_MAP[pkg_name]
+            confidence = "high"
+        else:
+            # Heuristic: replace hyphens with underscores (PEP 8 convention)
+            import_name = pkg_name.replace("-", "_")
+            confidence = "medium"
+
+        # Search source files
+        match = _find_import(path, import_name)
+
+        if match is not None:
+            rel_path, lineno = match
+            finding.reachable = "true"
+            finding.reachability_confidence = confidence
+            finding.reachability_evidence = f"import found in {rel_path}:{lineno}"
+        else:
+            finding.reachable = "false"
+            finding.reachability_confidence = confidence
+            finding.reachability_evidence = "not imported in any .py file"
+
+    return findings
