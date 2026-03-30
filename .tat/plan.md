@@ -18,7 +18,7 @@ Goal: `pip install patchpilot && patchpilot triage --path ./app` works end-to-en
 | # | Task | Epic | Status |
 |---|------|------|--------|
 | 1 | 6.1 Packaging — pyproject.toml + entry point + version | E6 | [x] |
-| 2 | 6.3 CI exit codes — --fail-on flag | E6 | [ ] |
+| 2 | 6.3 CI exit codes — --fail-on flag | E6 | [x] |
 | 3 | R.1 Trivy binary error handling (graceful missing-tool error) | Release | [ ] |
 | 4 | 6.5 Vulnerable sample app (compelling demo) | E6 | [ ] |
 | 5 | R.2 End-to-end CLI test (installed patchpilot path) | Release | [ ] |
