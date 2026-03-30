@@ -82,3 +82,44 @@ Captured during development. These improve TAT workflow and PatchPilot quality.
 **When:** Task 2.3b
 **Source:** User feedback
 **Lesson:** Lessons can come from Opus (self-review insights), GPT (review feedback), or the user (corrections/preferences). All should be captured here. This file is a learning layer that informs both TAT workflow improvements and project decisions.
+
+### 16. Don't force-override hooks — fix the root cause
+**When:** Post-Epic 2 sprint planning
+**Source:** User correction
+**Lesson:** When a TAT hook blocks a commit, don't use `TAT_FORCE=1` to bypass it. The hook is telling you something. Investigate WHY it blocked, capture the lesson, and fix the hook if it's wrong. Sweeping failures under the carpet means they'll pop up again. Learn from failures, don't mask them.
+**TAT bug found:** Pre-commit hook only allows `.tat/plan.md` on main, but `.tat/lessons.md` and `.tat/decisions/` are also workflow metadata that should be allowed on main. Fix the hook whitelist.
+
+## TAT Feature Candidates
+
+Patterns proven in this project that should be baked into TAT as features.
+
+### T1. Sprint-based prioritization within epics
+**When:** Post-Epic 2 planning
+**Source:** User + GPT
+**Pattern:** Epics define WHAT to build. Sprints define WHAT ORDER. After completing an epic, reprioritize remaining tasks across all epics into sprints ordered by user value. GPT helps prioritize — ask "what's the critical path to first user value?"
+**TAT feature:** `/tat sprint` — shows current sprint backlog, `/tat replan` — GPT reprioritizes remaining tasks into sprints.
+**Key insight from GPT:** "Sprint 1 should be all about getting a real, usable triage loop end-to-end, not polishing reports or docs."
+
+### T2. Docs follow context, not calendar
+**When:** Post-Epic 2 planning
+**Source:** GPT + Opus
+**Pattern:** Don't batch all docs at the end (they'll be stale). Don't do full docs after every epic (too early, things change). Instead: do lightweight concept docs alongside work (glossary when you define a concept), full architecture docs after the shape stabilizes.
+**TAT feature:** Auto-detect when a new concept is introduced (new ADR, new module) and prompt for glossary entry.
+
+### T3. GPT as sprint planner
+**When:** Post-Epic 2 planning
+**Source:** This session
+**Pattern:** After completing a milestone, send GPT the completed + remaining work and ask for sprint prioritization. GPT sees the forest when we're in the trees. Include: what's done, what's left, target user, deadlines, competitive context.
+**TAT feature:** `/tat replan` — auto-gathers state and asks GPT for sprint reprioritization.
+
+### T4. Split large tasks by value layer
+**When:** GPT sprint planning suggestion
+**Source:** GPT
+**Pattern:** Task 3.3 (triage output) should split into 3.3a (ranked list — MVP) and 3.3b (LLM narrative — enhancement). The split is by value layer: core output vs enhanced output. Ship the core, iterate on enhancement.
+**TAT feature:** When a task has "core + enhancement" pattern, suggest splitting during planning.
+
+### T5. Alignment checks at milestones
+**When:** After Epic 2 completion
+**Source:** This session
+**Pattern:** After completing an epic, run a GPT drift check (spec vs built) and update the alignment log. Catches architectural drift before it compounds.
+**TAT feature:** Auto-run drift check after each epic completion in post-merge checkpoint.

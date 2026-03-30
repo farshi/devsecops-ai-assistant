@@ -1,5 +1,38 @@
 # Plan
 
+## Current Sprint: Sprint 1 — MVP Triage (first user value)
+
+Goal: a user can run `patchpilot triage` and get a ranked, actionable list of what to fix.
+
+| # | Task | Epic | Status |
+|---|------|------|--------|
+| 1 | 3.2 Fix availability detection | E3 | [ ] |
+| 2 | 3.1 Scoring model | E3 | [ ] |
+| 3 | 3.3a Ranked triage output | E3 | [ ] |
+| 4 | 3.4 Wire triage CLI command | E3 | [ ] |
+| 5 | 4.1 Developer action plan | E4 | [ ] |
+| 6 | 7.1 Glossary (lightweight) | E7 | [ ] |
+
+### Sprint 2 — Credibility + Adoption
+| # | Task | Epic |
+|---|------|------|
+| 7 | 6.5 Vulnerable sample app | E6 |
+| 8 | 3.3b LLM narrative enhancement | E3 |
+| 9 | 4.4 Config and policy | E4 |
+| 10 | 6.1 Packaging (pip install) | E6 |
+| 11 | 6.3 CI exit codes | E6 |
+
+### Sprint 3 — Compliance + Polish
+| # | Task | Epic |
+|---|------|------|
+| 12 | 4.2 CRA disclosure format | E4 |
+| 13 | 4.3 State and baseline tracking | E4 |
+| 14 | 5.1 LLM provider abstraction | E5 |
+| 15 | 7.2-7.4 Remaining docs | E7 |
+| 16 | 6.2-6.4 GitHub Actions + README | E6 |
+
+---
+
 ## Epic 1: Foundation (done)
 - [x] Project scaffold, CLI skeleton, output conventions
 - [x] README with architecture diagram
@@ -119,15 +152,23 @@ This is the core IP. The prioritizer takes raw findings + context and produces a
 - **Test:** Finding with known fix → returns fix info. Finding without fix → returns `fix_available: false`.
 - **Done when:** Every finding has fix availability data
 
-### 3.3 Triage output generation
-- **What:** Produce the final ranked output — the "fix these 3-5 things this week" list
+### 3.3a Ranked triage output (MVP)
+- **What:** Produce the ranked output — the "fix these 3-5 things this week" list
 - **Input:** Scored findings from 3.1 + fix data from 3.2
-- **Output:** Ranked list with: priority tier, finding summary, why it matters (1 sentence), recommended action, effort estimate (trivial/moderate/complex), confidence level
+- **Output:** Ranked list with: priority tier, score, finding summary, recommended action, effort estimate
 - **Format:** JSON + markdown (both generated)
 - **File:** `agent/prioritizer.py` — function `generate_triage(scored_findings, context, top_n=5)`
-- **LLM usage:** The prioritizer uses LLM to generate the "why it matters" and "recommended action" sentences — but the RANKING is algorithmic (scoring model), not LLM-dependent. This is important: ranking must be deterministic and explainable.
+- **Key:** Ranking is algorithmic (scoring model), deterministic, explainable. No LLM dependency for core output.
 - **Test:** Given scored findings, verify output has correct structure and top-N selection
 - **Done when:** Running on sample_app scan produces a clear, actionable 3-5 item list
+
+### 3.3b LLM narrative enhancement (Sprint 2)
+- **What:** Add LLM-generated "why it matters" and "recommended action" sentences to triage output
+- **Input:** Ranked triage from 3.3a + context bundle
+- **Output:** Each finding gets a plain-English explanation and action recommendation
+- **Key:** Enhancement layer on top of 3.3a. Core triage works without LLM. This adds polish.
+- **File:** `agent/prioritizer.py` — function `enhance_triage_with_llm(triage, context)`
+- **Done when:** Top findings have human-readable explanations
 
 ### 3.4 Wire triage CLI command
 - **What:** Add `patchpilot triage` command that runs the full pipeline
