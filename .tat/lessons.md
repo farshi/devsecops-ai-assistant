@@ -63,6 +63,21 @@ Captured during development. These improve TAT workflow and PatchPilot quality.
 **Source:** User feedback
 **Lesson:** After creating a branch, always print 2-3 lines saying what task is being implemented and what it does. The user needs visibility even in auto-mode. Silence for minutes is bad UX.
 
+### 13. Finding fingerprint needed before state tracking
+**When:** GPT plan review after task 2.3b
+**Source:** GPT
+**Lesson:** Epic 4.3 (state/baseline tracking) needs a stable finding identity key (CVE+package+version+location). Without it, `--new-only` and dismiss logic break across scans. Add `Finding.fingerprint()` before starting Epic 4.
+
+### 14. Scoring model has unresolved input gaps
+**When:** GPT plan review after task 2.3b
+**Source:** GPT
+**Lesson:** Epic 3.1 scoring weights reference "base image age" (os_package) and "exposure level" + "fix complexity" (iac_misconfig), but no enrichment task produces these. Either add enrichment tasks or simplify the scoring model for types without those inputs.
+
+### 15. Don't build without a plan — even for docs
+**When:** User requested docs/
+**Source:** User
+**Lesson:** Any request — including documentation — should go through the plan first. No ADR = no decision captured = no traceability. Added Epic 7 for documentation.
+
 ### 12. Lessons come from everywhere — capture all of them
 **When:** Task 2.3b
 **Source:** User feedback
