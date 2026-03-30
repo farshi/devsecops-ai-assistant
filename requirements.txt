@@ -1,2 +1,6 @@
+# Runtime dependencies (also in pyproject.toml)
 anthropic>=0.25.0
 click>=8.1.0
+
+# Dev dependencies
+pytest>=8.0.0
