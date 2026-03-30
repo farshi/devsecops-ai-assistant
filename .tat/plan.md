@@ -70,7 +70,7 @@ The brain needs context before it can prioritize. This epic builds the layer tha
 - **Test:** Add a dep to sample_app that's in requirements.txt but never imported. Verify it's marked `reachable: false`. Test a known mismatch (e.g., PyYAML). Test OS package → `not_applicable`.
 - **Done when:** Findings have honest reachability annotation with confidence, test passes
 
-### 2.3b EPSS + KEV enrichment
+### 2.3b EPSS + KEV enrichment ✅
 - **What:** For each finding with a CVE ID, fetch EPSS score and check KEV catalog
 - **Input:** List of `Finding` instances with `id` field (CVE IDs)
 - **Output:** Each Finding gets `epss_score` (0.0-1.0) and `in_kev` (bool) populated
