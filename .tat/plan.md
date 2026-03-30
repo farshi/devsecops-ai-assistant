@@ -21,7 +21,7 @@ Goal: `pip install patchpilot && patchpilot triage --path ./app` works end-to-en
 | 2 | 6.3 CI exit codes — --fail-on flag | E6 | [x] |
 | 3 | R.1 Trivy binary error handling (graceful missing-tool error) | Release | [x] |
 | 4 | 6.5 Vulnerable sample app (compelling demo) | E6 | [x] |
-| 5 | R.2 End-to-end CLI test (installed patchpilot path) | Release | [ ] |
+| 5 | R.2 End-to-end CLI test (installed patchpilot path) | Release | [x] |
 | 6 | 6.4 README rewrite (PatchPilot positioning + install + demo) | E6 | [ ] |
 | 7 | R.3 Release metadata — CHANGELOG + LICENSE + CLAUDE.md cleanup | Release | [ ] |
 | 8 | R.4 Tag v0.1.0 + GitHub release | Release | [ ] |
