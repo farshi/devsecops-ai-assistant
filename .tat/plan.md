@@ -318,12 +318,27 @@ Living documentation that explains what PatchPilot is, how it works, and the con
 - **Done when:** Links to all ADRs with one-line summaries and status
 
 ## Backlog
+
+### Scanner integrations
 - [ ] Checkov scanner integration (IaC scanning)
 - [ ] Gitleaks scanner integration (secret detection)
 - [ ] Semgrep scanner integration (SAST patterns)
+
+### From article vision (ADR-008) — v0.2+
+- [ ] Guardrail design mode — AI suggests preventive controls, not just reactive fixes
+- [ ] Security metrics + trends — time-to-fix, risk per team/service, repeated mistakes
+- [ ] Policy-as-code generation — convert security rules into CI/CD controls (OPA, Sentinel)
+- [ ] Auto-remediation — generate patches for dependency bumps, create tickets, track to closure
+- [ ] Compliance framework mapping — map findings to SOC2/ISO27001/CRA controls automatically
+- [ ] Architecture risk assessment — evaluate system design for security patterns/anti-patterns
+
+### Distribution + operations
 - [ ] SBOM export (CycloneDX / SPDX format)
 - [ ] Slack/email notification on new critical findings
 - [ ] Done-for-you service playbook (how to run PatchPilot for clients)
 - [ ] Hosted automation tier (scheduled scans, auto-PRs)
 - [ ] Dependency license compliance checking
 - [ ] Historical trend tracking (are we getting more or less secure over time?)
+- [ ] Risk dashboards (needs UI — deferred until CLI value proven)
+- [ ] Finding ownership — "who should fix this?" based on git blame/CODEOWNERS (noted from GPT strategy review)
+- [ ] Ticket creation integration — create GitHub Issues / Jira tickets from triage output (noted from GPT strategy review)
