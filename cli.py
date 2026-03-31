@@ -341,6 +341,9 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
             click.echo(f"       {item['title'][:80]}")
             click.echo(f"       Action: {item['action']}")
             click.echo(f"       Effort: {item['effort']}")
+            fix = item.get("fix_suggestion", {})
+            if fix.get("command"):
+                click.echo(f"       Fix: {fix['command']} (confidence: {fix.get('confidence', '?')})")
             click.echo("")
     else:
         click.echo("  No actionable findings found.")
