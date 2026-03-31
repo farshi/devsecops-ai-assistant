@@ -328,6 +328,18 @@ Living documentation that explains what PatchPilot is, how it works, and the con
 - **File:** `docs/decisions.md`
 - **Done when:** Links to all ADRs with one-line summaries and status
 
+## Current Sprint: Sprint 5 — Daily Driver (v0.4.0)
+
+Goal: PatchPilot becomes part of the daily workflow — secrets, tickets, ownership, SBOM, trends.
+
+| # | Task | Epic | Status |
+|---|------|------|--------|
+| 20 | Gitleaks scanner integration | E8 | [ ] |
+| 21 | Ticket creation (GitHub Issues from triage) | E8 | [ ] |
+| 22 | Finding ownership (git blame/CODEOWNERS) | E8 | [ ] |
+| 23 | SBOM export (CycloneDX) | E8 | [ ] |
+| 24 | Historical trend tracking | E8 | [ ] |
+
 ## Backlog
 
 ### Scanner integrations
