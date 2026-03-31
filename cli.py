@@ -254,6 +254,11 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance):
     import json
     import os
 
+    # Check for config
+    config_path = os.path.join(path, ".patchpilot", "config.yaml")
+    if os.path.isfile(config_path):
+        click.echo(f"  [config] Loaded .patchpilot/config.yaml")
+
     # Step 1: Scan if requested
     summary_path = None
     if scan:

@@ -1,0 +1,32 @@
+# PatchPilot Configuration
+# Place this file at: .patchpilot/config.yaml in your project root
+
+# Only show findings at this severity level and above
+# Options: critical, high, medium, low (or omit to show all)
+# severity_threshold: high
+
+# CVEs to suppress (accepted risks)
+ignore_cves:
+  # - CVE-2023-xxxxx  # reason: accepted risk, mitigated by...
+
+# Packages to suppress
+ignore_packages:
+  # - dev-only-package  # reason: not in production
+
+# Number of top findings to surface in triage output
+top_n: 5
+
+# LLM provider for enhanced reports
+# Options: claude (default)
+llm_provider: claude
+
+# Reachability analysis settings
+reachability:
+  enabled: true
+  python_only: true  # v1: only Python import checking
+
+# Enrichment toggles
+enrichment:
+  epss: true          # Fetch EPSS exploitation probability
+  kev: true           # Check CISA KEV catalog
+  fix_availability: true  # Assess fix effort
