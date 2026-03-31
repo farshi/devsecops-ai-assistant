@@ -208,7 +208,11 @@ def report(target_name, path, top, dry_run):
               help="Exit with code 1 if findings at this tier or above exist. For CI gating.")
 @click.option("--enhance/--no-enhance", default=False, show_default=True,
               help="Add AI-generated explanations (requires ANTHROPIC_API_KEY).")
-def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance):
+@click.option("--format", "output_format",
+              type=click.Choice(["default", "cra"]),
+              default="default", show_default=True,
+              help="Output format. 'cra' generates EU CRA disclosure document.")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -342,6 +346,21 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance):
     click.echo(f"  Reports:")
     click.echo(f"    markdown → {report_file}")
     click.echo(f"    json     → {json_file}")
+
+    # CRA disclosure generation
+    if output_format == "cra":
+        from agent.plugins.formatters.cra import CRADisclosureFormatter
+        from agent.prioritizer import _finding_from_dict
+        from agent.context_builder import build_context
+
+        ctx = build_context(path, summary_path)
+        all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
+
+        cra_doc = CRADisclosureFormatter().format(all_findings, ctx)
+        cra_file = f"reports/{target_slug}_cra-disclosure_{triage_ts}.md"
+        with open(cra_file, "w") as f:
+            f.write(cra_doc)
+        click.echo(f"    cra      → {cra_file}")
 
     # CI exit code gating
     if fail_on:
