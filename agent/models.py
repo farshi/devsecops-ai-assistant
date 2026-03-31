@@ -4,6 +4,7 @@ Canonical Finding dataclass — the shared schema across all scanner adapters.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
@@ -41,6 +42,15 @@ class Finding:
     fix_evidence: Optional[str] = None
     priority_score: int = 0
     priority_tier: str = "unscored"
+
+    def fingerprint(self) -> str:
+        """Stable identity for this finding across scans.
+
+        Hash of: CVE ID + package name + installed version.
+        Used for state tracking (dismiss, accept, baseline diff).
+        """
+        key = f"{self.id}:{self.package or ''}:{self.installed_version or ''}"
+        return hashlib.sha256(key.encode()).hexdigest()[:16]
 
     def to_dict(self) -> dict:
         """Serialize to dict, dropping None values for cleaner JSON."""
