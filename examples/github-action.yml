@@ -1,0 +1,94 @@
+# PatchPilot Security Triage
+# Copy this file to .github/workflows/patchpilot.yml in your repo
+#
+# Required secrets:
+#   ANTHROPIC_API_KEY — for AI-enhanced reports (optional)
+#
+# Required: Trivy must be installed (handled automatically below)
+
+name: PatchPilot Security Triage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly scan — every Monday at 6am UTC
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  pull-requests: write  # for PR comments
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Install PatchPilot
+        run: |
+          pip install patchpilot
+          # Or from source: pip install -e .
+
+      - name: Run triage
+        id: triage
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Run triage with CI gating
+          # Change --fail-on to: critical, high, medium, or low
+          patchpilot triage \
+            --path . \
+            --target-name ${{ github.event.repository.name }} \
+            --top 10 \
+            --fail-on high \
+            2>&1 | tee triage-output.txt
+
+      - name: Upload triage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patchpilot-reports
+          path: reports/
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const glob = require('glob');
+
+            // Find the latest triage markdown report
+            const files = glob.sync('reports/*_triage_*.md');
+            if (files.length === 0) {
+              console.log('No triage report found');
+              return;
+            }
+
+            const report = fs.readFileSync(files[files.length - 1], 'utf8');
+
+            // Truncate if too long for PR comment
+            const maxLen = 60000;
+            const body = report.length > maxLen
+              ? report.substring(0, maxLen) + '\n\n... (truncated, see full report in artifacts)'
+              : report;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🔍 PatchPilot Security Triage\n\n${body}`
+            });
