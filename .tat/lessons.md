@@ -130,6 +130,12 @@ Patterns proven in this project that should be baked into TAT as features.
 **TAT feature:** `/tat vision <input>` — captures strategic input, creates ADR, adds backlog items, doesn't change current sprint.
 **TAT feature:** Auto-run drift check after each epic completion in post-merge checkpoint.
 
+### T8. Auto-mode must not skip checkpoints
+**When:** Sprint 4 → Sprint 5 transition
+**Source:** User correction
+**Lesson:** In auto-mode, the temptation is to skip checkpoint maps for speed. But checkpoints exist to prevent mistakes — they're mandatory even in auto-mode. If you stop showing checkpoint maps, you're not in TAT mode anymore. Self-evaluate periodically: "Am I following the checkpoint maps?"
+**TAT feature:** Periodic self-check prompt in auto-mode: every 3 tasks, print "[TAT] Self-check: am I following checkpoints?" before continuing.
+
 ### T7. Show what was built before asking for approval
 **When:** Sprint 3, task 4.4
 **Source:** User correction
