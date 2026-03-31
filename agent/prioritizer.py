@@ -315,7 +315,13 @@ def _finding_from_dict(d: dict) -> Finding:
     )
 
 
-def run_triage(path: str, scan_summary_path: str, top_n: int = 5, enhance: bool = False) -> dict:
+def run_triage(
+    path: str,
+    scan_summary_path: str,
+    top_n: int = 5,
+    enhance: bool = False,
+    new_only: bool = False,
+) -> dict:
     """Full triage pipeline: build context → score → generate output.
 
     This is the main entry point for the triage command.
@@ -325,9 +331,11 @@ def run_triage(path: str, scan_summary_path: str, top_n: int = 5, enhance: bool 
         scan_summary_path: Path to the scan summary JSON file.
         top_n: Number of top findings to include in the action list.
         enhance: If True and ANTHROPIC_API_KEY is set, add LLM narratives to action items.
+        new_only: If True, only surface findings that are new since the last baseline.
     """
     from agent.context_builder import build_context
     from agent.config import load_config, apply_config_filters
+    from agent.state import filter_dismissed, filter_new_only, save_baseline
 
     ctx = build_context(path, scan_summary_path)
 
@@ -343,11 +351,21 @@ def run_triage(path: str, scan_summary_path: str, top_n: int = 5, enhance: bool 
     # Apply config filters before scoring
     findings = apply_config_filters(findings, config)
 
+    # Filter dismissed/accepted findings
+    findings = filter_dismissed(findings, path)
+
+    # Filter to new-only if requested
+    if new_only:
+        findings = filter_new_only(findings, path)
+
     # Run fix availability enrichment (in case build_context didn't)
     from agent.plugins.enrichment.fix_availability import FixAvailabilityPlugin
     FixAvailabilityPlugin().enrich(findings, ctx)
 
     result = generate_triage(findings, ctx, top_n=top_n)
+
+    # Save current findings as baseline for next run
+    save_baseline(path, findings)
 
     if enhance:
         result = enhance_triage_with_llm(result, ctx)

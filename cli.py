@@ -212,7 +212,9 @@ def report(target_name, path, top, dry_run):
               type=click.Choice(["default", "cra"]),
               default="default", show_default=True,
               help="Output format. 'cra' generates EU CRA disclosure document.")
-def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format):
+@click.option("--new-only", is_flag=True, default=False,
+              help="Only show findings NEW since last scan.")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -297,7 +299,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
     click.echo("  [4/5] Scoring and ranking...")
 
     from agent.prioritizer import run_triage
-    result = run_triage(path, summary_path, top_n=top, enhance=enhance)
+    result = run_triage(path, summary_path, top_n=top, enhance=enhance, new_only=new_only)
 
     # Step 5: Output
     triage_data = result["triage"]
@@ -378,6 +380,30 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
             raise SystemExit(1)
         else:
             click.echo(f"  ✓ PASSED: no findings at '{fail_on}' level or above")
+
+
+# ---------------------------------------------------------------------------
+# dismiss
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--path", default=".", show_default=True, help="Project path.")
+@click.option("--cve", required=True, help="CVE ID to dismiss.")
+@click.option("--reason", default="", help="Reason for dismissal.")
+def dismiss(path, cve, reason):
+    """Dismiss a finding so it won't appear in future triage.
+
+    \b
+    Example:
+      patchpilot dismiss --cve CVE-2023-xxxxx --reason "mitigated by WAF"
+    """
+    import os
+    from agent.state import dismiss_cve
+
+    dismiss_cve(path, cve, reason)
+    state_file = os.path.join(path, ".patchpilot", "state.json")
+    click.echo(f"  Dismissed {cve}" + (f" — {reason}" if reason else ""))
+    click.echo(f"  State saved → {state_file}")
 
 
 # ---------------------------------------------------------------------------
