@@ -206,7 +206,9 @@ def report(target_name, path, top, dry_run):
               type=click.Choice(["critical", "high", "medium", "low"]),
               default=None,
               help="Exit with code 1 if findings at this tier or above exist. For CI gating.")
-def triage(path, target_name, top, profile, scan, dry_run, fail_on):
+@click.option("--enhance/--no-enhance", default=False, show_default=True,
+              help="Add AI-generated explanations (requires ANTHROPIC_API_KEY).")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -231,6 +233,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on):
     click.echo(f"  top         : {top}")
     click.echo(f"  profile     : {profile}")
     click.echo(f"  scan        : {'yes' if scan else 'no (use existing summary)'}")
+    click.echo(f"  enhance     : {'yes (LLM narratives)' if enhance else 'no'}")
     click.echo(f"  dry-run     : {dry_run}")
 
     if dry_run:
@@ -241,8 +244,10 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on):
         click.echo(f"    3. enrich findings (EPSS, KEV, fix availability)")
         click.echo(f"    4. score and rank findings")
         click.echo(f"    5. output top {top} action items")
+        if enhance:
+            click.echo(f"    6. add AI-generated explanations (requires ANTHROPIC_API_KEY)")
         if fail_on:
-            click.echo(f"    6. exit 1 if {fail_on}+ findings exist")
+            click.echo(f"    {'7' if enhance else '6'}. exit 1 if {fail_on}+ findings exist")
         return
 
     import glob
@@ -283,7 +288,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on):
     click.echo("  [4/5] Scoring and ranking...")
 
     from agent.prioritizer import run_triage
-    result = run_triage(path, summary_path, top_n=top)
+    result = run_triage(path, summary_path, top_n=top, enhance=enhance)
 
     # Step 5: Output
     triage_data = result["triage"]

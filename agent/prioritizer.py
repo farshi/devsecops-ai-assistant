@@ -1,10 +1,27 @@
 """PatchPilot triage engine — scores findings and generates ranked output."""
 
+import json
+import logging
+import os
 from datetime import date
 from typing import Optional
 
 from agent.models import Finding
 from agent.plugins.scoring.default import DefaultScoringStrategy
+
+log = logging.getLogger(__name__)
+
+NARRATIVE_SYSTEM_PROMPT = """You are a security analyst explaining vulnerability triage results to a developer.
+For each finding, provide:
+1. "why_it_matters" — 1-2 sentences explaining the real-world risk in plain English. Be specific to THIS codebase.
+2. "recommendation" — 1-2 sentences with concrete next steps. Not generic advice.
+
+Rules:
+- Do NOT re-rank or re-score findings. The ranking is already determined.
+- Reference the reachability status if available (e.g., "This package is imported in your code").
+- Reference EPSS/KEV if available (e.g., "This CVE has a 92% chance of being exploited in 30 days").
+- Be concise. Developers won't read paragraphs.
+- Return valid JSON array matching the input order."""
 
 
 def _build_action(finding: Finding) -> str:
@@ -99,11 +116,91 @@ def _generate_markdown(
         signal_parts.append("fix available" if fix_avail else "no fix available")
 
         lines.append(f"**Signals:** {' | '.join(signal_parts)}")
+
+        why = item.get("why_it_matters")
+        rec = item.get("recommendation")
+        if why:
+            lines.append(f"**Why it matters:** {why}")
+        if rec:
+            lines.append(f"**Recommendation:** {rec}")
+
         lines.append("")
         lines.append("---")
         lines.append("")
 
     return "\n".join(lines)
+
+
+def enhance_triage_with_llm(triage_result: dict, context: dict) -> dict:
+    """Add LLM-generated narratives to triage action items.
+
+    For each action item, adds:
+    - "why_it_matters": plain-English explanation of risk
+    - "recommendation": specific next-step guidance
+
+    Does NOT change ranking, scores, or tiers. LLM explains, doesn't re-rank.
+
+    Requires ANTHROPIC_API_KEY. If missing or LLM fails, returns triage unchanged
+    (narratives are enhancement, not requirement).
+
+    Args:
+        triage_result: Output from generate_triage() — has "triage" and "markdown" keys
+        context: Context bundle from build_context()
+
+    Returns:
+        Same triage_result dict with narratives added to action_items.
+    """
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        log.info("ANTHROPIC_API_KEY not set — skipping LLM narrative enhancement")
+        return triage_result
+
+    action_items = triage_result["triage"]["action_items"]
+    if not action_items:
+        return triage_result
+
+    try:
+        from agent import claude_client
+
+        user_msg = json.dumps({
+            "action_items": action_items,
+            "repo_context": {
+                "languages": context.get("repo", {}).get("languages", []),
+                "frameworks": context.get("repo", {}).get("frameworks", []),
+                "dependencies_count": len(context.get("dependencies", {}).get("direct", [])),
+            },
+        })
+
+        response = claude_client.call(NARRATIVE_SYSTEM_PROMPT, user_msg)
+
+        # Parse JSON array from response
+        narratives = json.loads(response)
+        if not isinstance(narratives, list):
+            log.warning("LLM narrative response was not a JSON array — skipping enhancement")
+            return triage_result
+
+        # Build lookup by id
+        narrative_by_id = {n["id"]: n for n in narratives if isinstance(n, dict) and "id" in n}
+
+        # Merge narratives into action items (preserving order and scores)
+        for item in action_items:
+            narrative = narrative_by_id.get(item["id"])
+            if narrative:
+                if "why_it_matters" in narrative:
+                    item["why_it_matters"] = narrative["why_it_matters"]
+                if "recommendation" in narrative:
+                    item["recommendation"] = narrative["recommendation"]
+
+        # Regenerate markdown with narratives included
+        triage_data = triage_result["triage"]
+        tier_summary = triage_data.get("summary", {})
+        triage_result["markdown"] = _generate_markdown(action_items, tier_summary, context)
+
+    except json.JSONDecodeError as exc:
+        log.warning("Failed to parse LLM narrative response as JSON: %s — skipping enhancement", exc)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("LLM narrative enhancement failed: %s — returning triage unchanged", exc)
+
+    return triage_result
 
 
 def generate_triage(
@@ -218,10 +315,16 @@ def _finding_from_dict(d: dict) -> Finding:
     )
 
 
-def run_triage(path: str, scan_summary_path: str, top_n: int = 5) -> dict:
+def run_triage(path: str, scan_summary_path: str, top_n: int = 5, enhance: bool = False) -> dict:
     """Full triage pipeline: build context → score → generate output.
 
     This is the main entry point for the triage command.
+
+    Args:
+        path: Path to the project directory.
+        scan_summary_path: Path to the scan summary JSON file.
+        top_n: Number of top findings to include in the action list.
+        enhance: If True and ANTHROPIC_API_KEY is set, add LLM narratives to action items.
     """
     from agent.context_builder import build_context
 
@@ -235,4 +338,8 @@ def run_triage(path: str, scan_summary_path: str, top_n: int = 5) -> dict:
     FixAvailabilityPlugin().enrich(findings, ctx)
 
     result = generate_triage(findings, ctx, top_n=top_n)
+
+    if enhance:
+        result = enhance_triage_with_llm(result, ctx)
+
     return result
