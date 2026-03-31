@@ -8,6 +8,7 @@ from typing import Optional
 
 from agent.models import Finding
 from agent.plugins.scoring.default import DefaultScoringStrategy
+from agent.fix_suggester import generate_fix_suggestions
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +23,17 @@ Rules:
 - Reference EPSS/KEV if available (e.g., "This CVE has a 92% chance of being exploited in 30 days").
 - Be concise. Developers won't read paragraphs.
 - Return valid JSON array matching the input order."""
+
+
+def _get_bump_label(fix_suggestion: dict) -> str:
+    """Extract a short label for the markdown fix line (e.g. 'major bump')."""
+    bump_map = {
+        "high": "major bump",
+        "low": "minor bump",
+        "none": "patch bump",
+    }
+    risk = fix_suggestion.get("breaking_change_risk", "")
+    return bump_map.get(risk, "unknown bump")
 
 
 def _build_action(finding: Finding) -> str:
@@ -116,6 +128,19 @@ def _generate_markdown(
         signal_parts.append("fix available" if fix_avail else "no fix available")
 
         lines.append(f"**Signals:** {' | '.join(signal_parts)}")
+
+        fix = item.get("fix_suggestion", {})
+        if fix.get("command"):
+            lines.append(
+                f"**Fix:** `{fix['command']}` (confidence: {fix.get('confidence', '?')} — {_get_bump_label(fix)})"
+            )
+            fix_caveats = fix.get("caveats", [])
+            if fix_caveats:
+                lines.append("**Caveats:**")
+                for caveat in fix_caveats:
+                    lines.append(f"  - {caveat}")
+        elif fix.get("suggestion_type") == "investigate":
+            lines.append(f"**Fix:** {fix.get('description', 'No fix available — monitor for updates.')}")
 
         why = item.get("why_it_matters")
         rec = item.get("recommendation")
@@ -264,23 +289,29 @@ def generate_triage(
         }
         action_items.append(item)
 
-    # Step 3: Build tier summary
+    # Step 3: Generate fix suggestions and attach to action items
+    top_findings = scored[:top_n]
+    suggestions = generate_fix_suggestions(top_findings, context)
+    for item, suggestion in zip(action_items, suggestions):
+        item["fix_suggestion"] = suggestion
+
+    # Step 4: Build tier summary
     tier_summary = {"critical": 0, "high": 0, "medium": 0, "low": 0, "noise": 0}
     for f in scored:
         tier = f.priority_tier
         if tier in tier_summary:
             tier_summary[tier] += 1
 
-    # Step 4: Extract scan metadata from context
+    # Step 5: Extract scan metadata from context
     scan_meta = context.get("scan_meta", {})
     scan_date = scan_meta.get("date", "")
     scanners_run = scan_meta.get("scanners_run", [])
     scanner = ", ".join(scanners_run) if scanners_run else ""
 
-    # Step 5: Generate markdown
+    # Step 6: Generate markdown
     markdown = _generate_markdown(action_items, tier_summary, context)
 
-    # Step 6: Assemble return dict
+    # Step 7: Assemble return dict
     return {
         "triage": {
             "generated_at": str(date.today()),
