@@ -26,9 +26,9 @@ Goal: `pip install patchpilot && patchpilot triage --path ./app` works end-to-en
 | 7 | R.3 Release metadata — CHANGELOG + LICENSE + CLAUDE.md cleanup | Release | [x] |
 | 8 | R.4 Tag v0.1.0 + GitHub release | Release | [x] |
 
-### Sprint 3 — Credibility + Features
-| # | Task | Epic |
-|---|------|------|
+### Sprint 3 — Credibility + Features ✅ (v0.2.0)
+| # | Task | Epic | Status |
+|---|------|------|--------|
 | 9 | 3.3b LLM narrative enhancement | E3 | [x] |
 | 10 | 4.4 Config and policy | E4 | [x] |
 | 11 | 4.2 CRA disclosure format | E4 | [x] |
@@ -36,6 +36,17 @@ Goal: `pip install patchpilot && patchpilot triage --path ./app` works end-to-en
 | 13 | 5.1 LLM provider abstraction | E5 | [x] |
 | 14 | 7.2-7.4 Remaining docs | E7 | [x] |
 | 15 | 6.2 GitHub Actions template | E6 | [x] |
+
+## Current Sprint: Sprint 4 — Remediation + PR Review + PyPI (v0.3.0)
+
+Goal: PatchPilot tells you what to change, catches new issues in PRs, and is installable via `pip install patchpilot`.
+
+| # | Task | Epic | Status |
+|---|------|------|--------|
+| 16 | 5.2 Context-aware fix suggestions | E5 | [ ] |
+| 17 | 5.3 Review command for PR diffs | E5 | [ ] |
+| 18 | R.5 PyPI publish + release process | Release | [ ] |
+| 19 | R.6 Fix suggestion guardrails (safe defaults) | Release | [ ] |
 
 ---
 
