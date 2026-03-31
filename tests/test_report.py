@@ -95,7 +95,7 @@ def test_run_with_triage_writes_report(tmp_path, monkeypatch):
     summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
 
     with patch("agent.prioritizer.run_triage", return_value=MOCK_TRIAGE), \
-         patch("agent.claude_client.call", return_value="## Action Plan\nFix it."):
+         patch("agent.llm_client.call", return_value="## Action Plan\nFix it."):
         out_path = security_summary.run_with_triage("Test App", "test-app", str(tmp_path))
 
     assert os.path.exists(out_path)
@@ -116,12 +116,12 @@ def test_run_with_triage_sends_triage_to_claude(tmp_path, monkeypatch):
 
     captured = {}
 
-    def fake_call(system_prompt, user_message):
+    def fake_call(system_prompt, user_message, provider="claude"):
         captured["user_message"] = user_message
         return "## Report"
 
     with patch("agent.prioritizer.run_triage", return_value=MOCK_TRIAGE), \
-         patch("agent.claude_client.call", side_effect=fake_call):
+         patch("agent.llm_client.call", side_effect=fake_call):
         security_summary.run_with_triage("Test App", "test-app", str(tmp_path))
 
     assert "triage" in captured["user_message"]

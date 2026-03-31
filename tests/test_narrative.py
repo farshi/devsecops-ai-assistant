@@ -73,7 +73,7 @@ def test_enhance_adds_narratives():
     context = _make_context()
 
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
-        with patch("agent.claude_client.call", return_value=json.dumps(MOCK_NARRATIVES)):
+        with patch("agent.llm_client.call", return_value=json.dumps(MOCK_NARRATIVES)):
             enhanced = enhance_triage_with_llm(triage_result, context)
 
     items = enhanced["triage"]["action_items"]
@@ -101,7 +101,7 @@ def test_enhance_preserves_ranking():
     ]
 
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
-        with patch("agent.claude_client.call", return_value=json.dumps(MOCK_NARRATIVES)):
+        with patch("agent.llm_client.call", return_value=json.dumps(MOCK_NARRATIVES)):
             enhanced = enhance_triage_with_llm(triage_result, context)
 
     for orig, item in zip(original_items, enhanced["triage"]["action_items"]):
@@ -143,7 +143,7 @@ def test_enhance_handles_llm_error():
     original_score = triage_result["triage"]["action_items"][0]["priority_score"]
 
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
-        with patch("agent.claude_client.call", side_effect=RuntimeError("API error")):
+        with patch("agent.llm_client.call", side_effect=RuntimeError("API error")):
             result = enhance_triage_with_llm(triage_result, context)
 
     item = result["triage"]["action_items"][0]
@@ -161,7 +161,7 @@ def test_enhance_handles_invalid_json():
     context = _make_context()
 
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
-        with patch("agent.claude_client.call", return_value="This is not JSON at all!"):
+        with patch("agent.llm_client.call", return_value="This is not JSON at all!"):
             result = enhance_triage_with_llm(triage_result, context)
 
     item = result["triage"]["action_items"][0]
@@ -179,7 +179,7 @@ def test_enhanced_markdown_includes_narratives():
     context = _make_context()
 
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
-        with patch("agent.claude_client.call", return_value=json.dumps(MOCK_NARRATIVES)):
+        with patch("agent.llm_client.call", return_value=json.dumps(MOCK_NARRATIVES)):
             enhanced = enhance_triage_with_llm(triage_result, context)
 
     md = enhanced["markdown"]

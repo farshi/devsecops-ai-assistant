@@ -150,8 +150,14 @@ def enhance_triage_with_llm(triage_result: dict, context: dict) -> dict:
     Returns:
         Same triage_result dict with narratives added to action_items.
     """
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    provider = context.get("config", {}).get("llm_provider", "claude")
+
+    # Guard: require the appropriate API key before attempting LLM call
+    if provider == "claude" and not os.environ.get("ANTHROPIC_API_KEY"):
         log.info("ANTHROPIC_API_KEY not set — skipping LLM narrative enhancement")
+        return triage_result
+    if provider in ("openai", "gpt") and not os.environ.get("OPENAI_API_KEY"):
+        log.info("OPENAI_API_KEY not set — skipping LLM narrative enhancement")
         return triage_result
 
     action_items = triage_result["triage"]["action_items"]
@@ -159,7 +165,7 @@ def enhance_triage_with_llm(triage_result: dict, context: dict) -> dict:
         return triage_result
 
     try:
-        from agent import claude_client
+        from agent.llm_client import call as llm_call
 
         user_msg = json.dumps({
             "action_items": action_items,
@@ -170,7 +176,7 @@ def enhance_triage_with_llm(triage_result: dict, context: dict) -> dict:
             },
         })
 
-        response = claude_client.call(NARRATIVE_SYSTEM_PROMPT, user_msg)
+        response = llm_call(NARRATIVE_SYSTEM_PROMPT, user_msg, provider=provider)
 
         # Parse JSON array from response
         narratives = json.loads(response)
