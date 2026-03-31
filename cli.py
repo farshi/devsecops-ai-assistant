@@ -497,8 +497,30 @@ def review(path, target_name, mode, branch, dry_run):
         click.echo(f"    5. Claude response → {out}")
         return
 
-    # TODO: call agent.review.run(path, target_slug, mode, branch)
-    click.echo("\n  [stub] review handler not implemented yet.")
+    from agent import review as review_agent
+    try:
+        result = review_agent.run(path, target_slug, mode, branch)
+    except RuntimeError as exc:
+        raise click.ClickException(str(exc))
+
+    # Save review output
+    import os as _os
+    _os.makedirs("reviews", exist_ok=True)
+    out = f"reviews/{target_slug}{out_suffix}"
+    with open(out, "w") as f:
+        f.write(f"# Security Review — {target_name}\n\n")
+        f.write(f"**Verdict: {result['verdict']}**\n\n")
+        f.write(f"Files reviewed: {', '.join(result['changed_files'][:10])}\n\n")
+        f.write("---\n\n")
+        f.write(result["review_text"])
+
+    click.echo(f"\n  Verdict: {result['verdict']}")
+    click.echo(f"  Files reviewed: {len(result['changed_files'])}")
+    click.echo(f"  Review written → {out}")
+
+    # Exit code for CI
+    if result["verdict"] == "BLOCK":
+        raise SystemExit(1)
 
 
 # ---------------------------------------------------------------------------
