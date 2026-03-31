@@ -62,7 +62,7 @@ def _call_openai(system_prompt: str, user_message: str) -> str:
     import urllib.error
     import urllib.request
 
-    model = os.environ.get("PATCHPILOT_OPENAI_MODEL", "gpt-4o-mini")
+    model = os.environ.get("PATCHPILOT_OPENAI_MODEL", "gpt-5.4-mini")
 
     payload = json.dumps({
         "model": model,

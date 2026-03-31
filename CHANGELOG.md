@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.3.0 (2026-03-31)
+
+Remediation + PR review release. PatchPilot now tells you what to change and catches issues in PRs.
+
+### Features
+- **Context-aware fix suggestions** — upgrade commands (pip/npm/go) with confidence levels and contextual caveats from reachability, KEV, EPSS signals
+- **PR security review** — `patchpilot review --diff` scans git changes for security issues with PASS/WARN/BLOCK verdicts
+- **Fix suggestion guardrails** — config for major bump policy, max suggestions, unused package removal
+- **Updated LLM defaults** — Claude Sonnet 4, GPT 5.4-mini
+
+### Infrastructure
+- 286 tests passing
+- 30 PRs merged across 4 sprints
+- Ready for PyPI publish (`pip install patchpilot`)
+
+---
+
 ## v0.2.0 (2026-03-31)
 
 Credibility + features release.

@@ -30,3 +30,10 @@ enrichment:
   epss: true          # Fetch EPSS exploitation probability
   kev: true           # Check CISA KEV catalog
   fix_availability: true  # Assess fix effort
+
+# Fix suggestion guardrails
+fix_suggestions:
+  enabled: true
+  allow_major_bumps: false    # Don't suggest major version upgrades by default
+  max_suggestions: 10         # Cap number of fix suggestions
+  suggest_removal: true       # Suggest removing unused packages (reachable=false)
