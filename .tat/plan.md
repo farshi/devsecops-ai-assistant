@@ -35,7 +35,7 @@ Goal: `pip install patchpilot && patchpilot triage --path ./app` works end-to-en
 | 12 | 4.3 State and baseline tracking | E4 | [x] |
 | 13 | 5.1 LLM provider abstraction | E5 | [x] |
 | 14 | 7.2-7.4 Remaining docs | E7 | [x] |
-| 15 | 6.2 GitHub Actions template | E6 |
+| 15 | 6.2 GitHub Actions template | E6 | [x] |
 
 ---
 

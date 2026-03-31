@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.2.0 (2026-03-31)
+
+Credibility + features release.
+
+### Features
+- **LLM narrative enhancement** — `--enhance` adds Claude-generated "why it matters" + "what to do" for each finding
+- **Config and policy** — `.patchpilot/config.yaml` for severity thresholds, CVE/package ignores, enrichment toggles
+- **CRA disclosure format** — `--format cra` generates EU Cyber Resilience Act compliant vulnerability disclosure
+- **State and baseline tracking** — dismiss findings, accept risks, `--new-only` shows only new findings since last scan
+- **LLM provider abstraction** — Claude + GPT support via config (`llm_provider: openai`), no openai SDK needed
+- **GitHub Actions template** — copy-paste workflow in `examples/github-action.yml`
+
+### Documentation
+- Architecture doc with data flow diagram and module map
+- Plugin development guide with examples for all 4 plugin types
+- Decision log summary linking all 8 ADRs
+
+### Infrastructure
+- Project CI workflow (Python 3.9/3.11/3.12)
+- 255 tests passing
+
+---
+
 ## v0.1.0 (2026-03-31)
 
 First public release. Smart vulnerability triage for developers.
