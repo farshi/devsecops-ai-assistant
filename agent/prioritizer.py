@@ -327,11 +327,21 @@ def run_triage(path: str, scan_summary_path: str, top_n: int = 5, enhance: bool 
         enhance: If True and ANTHROPIC_API_KEY is set, add LLM narratives to action items.
     """
     from agent.context_builder import build_context
+    from agent.config import load_config, apply_config_filters
 
     ctx = build_context(path, scan_summary_path)
 
+    config = load_config(path)
+
+    # Config can override top_n if not explicitly set by CLI
+    if top_n == 5:  # default value — let config override
+        top_n = config.get("top_n", 5)
+
     # Convert context findings (dicts) back to Finding objects
     findings = [_finding_from_dict(fd) for fd in ctx["findings"]]
+
+    # Apply config filters before scoring
+    findings = apply_config_filters(findings, config)
 
     # Run fix availability enrichment (in case build_context didn't)
     from agent.plugins.enrichment.fix_availability import FixAvailabilityPlugin
