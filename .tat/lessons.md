@@ -129,3 +129,16 @@ Patterns proven in this project that should be baked into TAT as features.
 **Pattern:** Strategic vision input (articles, competitor announcements, user feedback) should be captured as ADRs and backlog items, NOT injected into the current sprint. The process: (1) read/discuss, (2) capture as ADR with "what changes now vs later", (3) add new backlog items, (4) replan at next sprint boundary. Don't pivot mid-sprint.
 **TAT feature:** `/tat vision <input>` — captures strategic input, creates ADR, adds backlog items, doesn't change current sprint.
 **TAT feature:** Auto-run drift check after each epic completion in post-merge checkpoint.
+
+### T7. Show what was built before asking for approval
+**When:** Sprint 3, task 4.4
+**Source:** User correction
+**Pattern:** Before asking "approve to merge?", always show a summary of what was built: files created/modified, key implementation details, what the user can now DO that they couldn't before. Don't just say "X tests pass, approve?" — explain the deliverable.
+**TAT feature:** Bake into SHIP checkpoint — step between GPT review and "user approves merge" should be "show deliverable summary". Format:
+```
+[TAT] ▶ What was built:
+  Files: agent/config.py (new), examples/config.yaml (new), ...
+  What's new: patchpilot now reads .patchpilot/config.yaml for thresholds/ignores
+  You can now: add severity_threshold: high to skip low/medium findings
+  Tests: 202 passing (+23 new)
+```

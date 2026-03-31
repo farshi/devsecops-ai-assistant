@@ -30,7 +30,7 @@ Goal: `pip install patchpilot && patchpilot triage --path ./app` works end-to-en
 | # | Task | Epic |
 |---|------|------|
 | 9 | 3.3b LLM narrative enhancement | E3 | [x] |
-| 10 | 4.4 Config and policy | E4 |
+| 10 | 4.4 Config and policy | E4 | [x] |
 | 11 | 4.2 CRA disclosure format | E4 |
 | 12 | 4.3 State and baseline tracking | E4 |
 | 13 | 5.1 LLM provider abstraction | E5 |
