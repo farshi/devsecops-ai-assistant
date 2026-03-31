@@ -43,7 +43,7 @@ Goal: PatchPilot tells you what to change, catches new issues in PRs, and is ins
 
 | # | Task | Epic | Status |
 |---|------|------|--------|
-| 16 | 5.2 Context-aware fix suggestions | E5 | [ ] |
+| 16 | 5.2 Context-aware fix suggestions | E5 | [x] |
 | 17 | 5.3 Review command for PR diffs | E5 | [ ] |
 | 18 | R.5 PyPI publish + release process | Release | [ ] |
 | 19 | R.6 Fix suggestion guardrails (safe defaults) | Release | [ ] |
