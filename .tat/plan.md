@@ -23,8 +23,8 @@ Goal: `pip install patchpilot && patchpilot triage --path ./app` works end-to-en
 | 4 | 6.5 Vulnerable sample app (compelling demo) | E6 | [x] |
 | 5 | R.2 End-to-end CLI test (installed patchpilot path) | Release | [x] |
 | 6 | 6.4 README rewrite (PatchPilot positioning + install + demo) | E6 | [x] |
-| 7 | R.3 Release metadata — CHANGELOG + LICENSE + CLAUDE.md cleanup | Release | [ ] |
-| 8 | R.4 Tag v0.1.0 + GitHub release | Release | [ ] |
+| 7 | R.3 Release metadata — CHANGELOG + LICENSE + CLAUDE.md cleanup | Release | [x] |
+| 8 | R.4 Tag v0.1.0 + GitHub release | Release | [x] |
 
 ### Sprint 3 — Credibility + Features
 | # | Task | Epic |
