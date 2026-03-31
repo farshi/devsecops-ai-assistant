@@ -24,16 +24,16 @@ README.md             ← marketing overview (if user-facing change)
 | Finding Types (ADR-004) | `concepts.md` | Finding Types | 2026-03-30 |
 | Reachability Approach (ADR-003) | `concepts.md` | Reachability | 2026-03-30 |
 | Competitive Positioning (ADR-005) | `concepts.md` | How PatchPilot Compares | 2026-03-30 |
-| Target Architecture | `architecture.md` | Project Structure | — |
-| Target Architecture | `architecture.md` | Data Flow | — |
-| Extensibility Model (ADR-001) | `architecture.md` | Plugin Pipeline | — |
-| Extensibility Model (ADR-001) | `plugins.md` | All | — |
-| Plugin Interface Contracts | `plugins.md` | ABC Reference | — |
-| Scoring Model (Epic 3) | `concepts.md` | Priority Scoring | — |
-| CRA Compliance (Epic 4.2) | `concepts.md` | EU CRA | — |
+| Target Architecture | `architecture.md` | Project Structure | 2026-03-31 |
+| Target Architecture | `architecture.md` | Data Flow | 2026-03-31 |
+| Extensibility Model (ADR-001) | `architecture.md` | Plugin Pipeline | 2026-03-31 |
+| Extensibility Model (ADR-001) | `plugins.md` | All | 2026-03-31 |
+| Plugin Interface Contracts | `plugins.md` | ABC Reference | 2026-03-31 |
+| Scoring Model (Epic 3) | `concepts.md` | Priority Scoring | 2026-03-30 |
+| CRA Compliance (Epic 4.2) | `concepts.md` | EU CRA | 2026-03-30 |
 | Monetization | — | — | Not in docs (internal) |
-| Constraints | `architecture.md` | Constraints | — |
-| All ADRs | `decisions.md` | Per-entry | — |
+| Constraints | `architecture.md` | Constraints | 2026-03-31 |
+| All ADRs | `decisions.md` | Per-entry | 2026-03-31 |
 
 ## Key Terms → Definitions Location
 
