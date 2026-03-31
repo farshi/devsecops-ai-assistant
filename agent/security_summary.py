@@ -88,7 +88,8 @@ def run_with_triage(target_name: str, target_slug: str, path: str, top_n: int = 
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY not set. Export your Anthropic API key.")
 
-    report_text = claude_client.call(system_prompt, user_message)
+    from agent import llm_client
+    report_text = llm_client.call(system_prompt, user_message, provider="claude")
 
     out_file = f"reports/{target_slug}_security-report_{timestamp()}.md"
     os.makedirs("reports", exist_ok=True)
