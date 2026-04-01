@@ -52,9 +52,25 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
             findings_by_scanner["checkov"] = []
             notes.append("checkov skipped: runner not yet implemented")
 
-    # --- semgrep / gitleaks (future) ---
+    # --- gitleaks ---
+    if "gitleaks" in scanners:
+        raw_file = f"reports/{target_slug}_gitleaks_{date}.json"
+        try:
+            from devsecops.runners import run_gitleaks
+            from agent.plugins.scanners.gitleaks import GitleaksScannerAdapter
+
+            raw = run_gitleaks.run(path, raw_file)
+            adapter = GitleaksScannerAdapter()
+            findings_by_scanner["gitleaks"] = adapter.parse_list(raw)
+            scanners_run.append("gitleaks")
+        except RuntimeError as exc:
+            scanners_skipped.append({"scanner": "gitleaks", "reason": str(exc)})
+            findings_by_scanner["gitleaks"] = []
+            notes.append(f"gitleaks skipped: {exc}")
+
+    # --- semgrep / other future scanners ---
     for scanner in scanners:
-        if scanner not in ("trivy_fs", "checkov"):
+        if scanner not in ("trivy_fs", "checkov", "gitleaks"):
             scanners_skipped.append({"scanner": scanner, "reason": "runner not yet implemented"})
             findings_by_scanner[scanner] = []
             notes.append(f"{scanner} skipped: runner not yet implemented")

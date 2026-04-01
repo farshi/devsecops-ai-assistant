@@ -36,7 +36,7 @@ PROFILE_SCANNERS = {
 PROFILE_NOTES = {
     "quick":    "trivy fs only",
     "standard": "trivy fs + checkov (checkov runs only if .tf files are found)",
-    "full":     "trivy fs + checkov + semgrep + gitleaks (semgrep/gitleaks: future)",
+    "full":     "trivy fs + checkov + semgrep + gitleaks",
 }
 
 
