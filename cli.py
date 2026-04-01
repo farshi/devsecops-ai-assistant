@@ -364,7 +364,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         from agent.ticket_creator import create_issues_from_triage
         click.echo("")
         click.echo("  [issues] Creating GitHub Issues...")
-        issue_result = create_issues_from_triage(triage_data)
+        issue_result = create_issues_from_triage(triage_data, dry_run=dry_run)
 
         created_issues = issue_result["created"]
         skipped_issues = issue_result["skipped"]
