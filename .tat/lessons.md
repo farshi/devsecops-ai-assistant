@@ -130,6 +130,12 @@ Patterns proven in this project that should be baked into TAT as features.
 **TAT feature:** `/tat vision <input>` — captures strategic input, creates ADR, adds backlog items, doesn't change current sprint.
 **TAT feature:** Auto-run drift check after each epic completion in post-merge checkpoint.
 
+### T9. Trivial ops changes should auto-override with warning
+**When:** Disabling broken CI workflow flooded user's inbox
+**Source:** User feedback
+**Lesson:** For trivial operations (removing broken CI, fixing typos, config tweaks), don't make the user go through branch+PR+merge. Auto-override the hook with a clear warning: `[TAT] ⚠ Overriding main protection for trivial change: <reason>`. Let the user see and accept it inline. The hook exists to protect code quality, not to block ops fixes.
+**TAT feature:** Add `--trivial` flag or auto-detect trivial changes (config files, CI, docs typos) and override with warning instead of blocking. Categories: `.github/`, `*.yml` config, single-file doc fixes.
+
 ### T8. Auto-mode must not skip checkpoints
 **When:** Sprint 4 → Sprint 5 transition
 **Source:** User correction
