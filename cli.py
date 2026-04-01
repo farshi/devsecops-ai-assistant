@@ -214,7 +214,9 @@ def report(target_name, path, top, dry_run):
               help="Output format. 'cra' generates EU CRA disclosure document.")
 @click.option("--new-only", is_flag=True, default=False,
               help="Only show findings NEW since last scan.")
-def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only):
+@click.option("--create-issues", is_flag=True, default=False,
+              help="Create GitHub Issues for top findings (requires gh CLI).")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -250,10 +252,15 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         click.echo(f"    3. enrich findings (EPSS, KEV, fix availability)")
         click.echo(f"    4. score and rank findings")
         click.echo(f"    5. output top {top} action items")
+        step = 6
         if enhance:
-            click.echo(f"    6. add AI-generated explanations (requires ANTHROPIC_API_KEY)")
+            click.echo(f"    {step}. add AI-generated explanations (requires ANTHROPIC_API_KEY)")
+            step += 1
+        if create_issues:
+            click.echo(f"    {step}. create GitHub Issues for top findings (requires gh CLI)")
+            step += 1
         if fail_on:
-            click.echo(f"    {'7' if enhance else '6'}. exit 1 if {fail_on}+ findings exist")
+            click.echo(f"    {step}. exit 1 if {fail_on}+ findings exist")
         return
 
     import glob
@@ -351,6 +358,33 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
     click.echo(f"  Reports:")
     click.echo(f"    markdown → {report_file}")
     click.echo(f"    json     → {json_file}")
+
+    # GitHub Issues creation
+    if create_issues:
+        from agent.ticket_creator import create_issues_from_triage
+        click.echo("")
+        click.echo("  [issues] Creating GitHub Issues...")
+        issue_result = create_issues_from_triage(triage_data, dry_run=dry_run)
+
+        created_issues = issue_result["created"]
+        skipped_issues = issue_result["skipped"]
+        issue_errors = issue_result["errors"]
+
+        if created_issues:
+            click.echo(f"  [issues] Created {len(created_issues)} issues:")
+            for c in created_issues:
+                click.echo(f"    #{c['rank']} {c['id']} -> {c['issue_url']}")
+        if skipped_issues:
+            click.echo(f"  [issues] Skipped {len(skipped_issues)} (duplicates):")
+            for s in skipped_issues:
+                click.echo(f"    #{s['rank']} {s['id']} -- {s['reason']}")
+        if issue_errors:
+            click.echo(f"  [issues] Errors ({len(issue_errors)}):")
+            for e in issue_errors:
+                click.echo(f"    #{e['rank']} {e['id']} -- {e['error']}")
+
+        if not created_issues and not skipped_issues and not issue_errors:
+            click.echo("  [issues] No action items to create issues for.")
 
     # CRA disclosure generation
     if output_format == "cra":
