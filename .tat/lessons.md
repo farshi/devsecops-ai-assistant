@@ -154,3 +154,9 @@ Patterns proven in this project that should be baked into TAT as features.
   You can now: add severity_threshold: high to skip low/medium findings
   Tests: 202 passing (+23 new)
 ```
+
+### T8. TAT scripts live in ~/.tinyaiteam/scripts/, not ./scripts/
+**When:** Sprint 5, task 21
+**Source:** Runtime error (exit code 127)
+**Lesson:** The TAT skill template references `./scripts/tat-state.sh` but all TAT scripts are installed globally at `~/.tinyaiteam/scripts/`. Always use the full path `~/.tinyaiteam/scripts/<script>` when calling TAT helper scripts.
+**Rule:** Never prefix TAT scripts with `./scripts/` — use `~/.tinyaiteam/scripts/` instead.
