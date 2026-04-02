@@ -204,6 +204,18 @@ def _build_issue_body(item: dict) -> str:
             f"Confidence: {fix_conf} | Breaking change risk: {fix_risk}",
         ]
 
+    owner = item.get("owner", {})
+    if owner.get("name"):
+        owner_line = owner["name"]
+        if owner.get("email"):
+            owner_line += f" ({owner['email']})"
+        lines += [
+            "",
+            "### Owner",
+            f"Suggested owner: {owner_line}",
+            f"Source: {owner.get('source', 'unknown')}",
+        ]
+
     lines += [
         "",
         "---",

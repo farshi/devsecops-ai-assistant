@@ -277,6 +277,7 @@ def generate_triage(
             "fixed_version": finding.fixed_version,
             "severity": finding.severity,
             "title": finding.title,
+            "location": finding.location,
             "action": _build_action(finding),
             "effort": _extract_effort(finding),
             "signals": {
