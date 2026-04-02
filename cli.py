@@ -216,7 +216,9 @@ def report(target_name, path, top, dry_run):
               help="Only show findings NEW since last scan.")
 @click.option("--create-issues", is_flag=True, default=False,
               help="Create GitHub Issues for top findings (requires gh CLI).")
-def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues):
+@click.option("--owners", is_flag=True, default=False,
+              help="Resolve finding owners via git blame/CODEOWNERS.")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues, owners):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -258,6 +260,9 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
             step += 1
         if create_issues:
             click.echo(f"    {step}. create GitHub Issues for top findings (requires gh CLI)")
+            step += 1
+        if owners:
+            click.echo(f"    {step}. resolve finding owners via git blame/CODEOWNERS")
             step += 1
         if fail_on:
             click.echo(f"    {step}. exit 1 if {fail_on}+ findings exist")
@@ -308,6 +313,12 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
     from agent.prioritizer import run_triage
     result = run_triage(path, summary_path, top_n=top, enhance=enhance, new_only=new_only)
 
+    # Resolve ownership if requested
+    if owners:
+        from agent.ownership import resolve_owners
+        click.echo("  [owners] Resolving finding owners...")
+        resolve_owners(result["triage"]["action_items"], path)
+
     # Step 5: Output
     triage_data = result["triage"]
     markdown = result["markdown"]
@@ -351,6 +362,9 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
             fix = item.get("fix_suggestion", {})
             if fix.get("command"):
                 click.echo(f"       Fix: {fix['command']} (confidence: {fix.get('confidence', '?')})")
+            owner = item.get("owner", {})
+            if owner.get("name"):
+                click.echo(f"       Owner: {owner['name']} (via {owner.get('source', '?')})")
             click.echo("")
     else:
         click.echo("  No actionable findings found.")
