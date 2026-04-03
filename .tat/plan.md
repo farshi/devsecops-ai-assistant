@@ -4,7 +4,7 @@
 
 | ID | Task | Status |
 |----|------|--------|
-| 29 | Weekly digest command — summary from baseline + trends | [ ] |
+| 29 | Weekly digest command — summary from baseline + trends | [x] |
 | 30 | Digest "what changed" — new/resolved/regression detection | [ ] |
 | 31 | GitHub Actions cron workflow template — scheduled triage | [ ] |
 | 32 | Close command — mark findings resolved | [ ] |
