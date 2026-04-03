@@ -70,7 +70,7 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
 
     # --- semgrep / other future scanners ---
     for scanner in scanners:
-        if scanner not in ("trivy_fs", "checkov", "gitleaks"):
+        if scanner not in ("trivy_fs", "checkov", "gitleaks", "sarif"):
             scanners_skipped.append({"scanner": scanner, "reason": "runner not yet implemented"})
             findings_by_scanner[scanner] = []
             notes.append(f"{scanner} skipped: runner not yet implemented")
