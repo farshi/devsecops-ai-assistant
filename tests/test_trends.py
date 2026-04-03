@@ -266,6 +266,46 @@ class TestComputeTrends:
         assert trends["tier_directions"]["high"] == "stable"
         assert trends["tier_directions"]["medium"] == "increasing"
 
+    def test_regression_detected(self):
+        """Finding appears, disappears, reappears → regression."""
+        history = _make_history([
+            _make_snapshot("2026-04-01", 1, {}, {"fp1": {"id": "CVE-A", "package": "p"}}),
+            _make_snapshot("2026-04-02", 0, {}, {}),  # resolved
+            _make_snapshot("2026-04-03", 1, {}, {"fp1": {"id": "CVE-A", "package": "p"}}),  # back
+        ])
+        trends = compute_trends(history)
+        assert len(trends["regressions"]) == 1
+        assert trends["regressions"][0]["id"] == "CVE-A"
+
+    def test_no_regression_for_continuous(self):
+        """Finding present in all snapshots is not a regression."""
+        history = _make_history([
+            _make_snapshot("2026-04-01", 1, {}, {"fp1": {"id": "CVE-A", "package": "p"}}),
+            _make_snapshot("2026-04-02", 1, {}, {"fp1": {"id": "CVE-A", "package": "p"}}),
+            _make_snapshot("2026-04-03", 1, {}, {"fp1": {"id": "CVE-A", "package": "p"}}),
+        ])
+        trends = compute_trends(history)
+        assert len(trends["regressions"]) == 0
+
+    def test_no_regression_for_new(self):
+        """Finding that only appears in latest is new, not a regression."""
+        history = _make_history([
+            _make_snapshot("2026-04-01", 0, {}, {}),
+            _make_snapshot("2026-04-02", 0, {}, {}),
+            _make_snapshot("2026-04-03", 1, {}, {"fp1": {"id": "CVE-A", "package": "p"}}),
+        ])
+        trends = compute_trends(history)
+        assert len(trends["regressions"]) == 0
+
+    def test_regression_needs_three_snapshots(self):
+        """Cannot detect regressions with fewer than 3 snapshots."""
+        history = _make_history([
+            _make_snapshot("2026-04-01", 1, {}, {"fp1": {"id": "CVE-A", "package": "p"}}),
+            _make_snapshot("2026-04-02", 1, {}, {"fp1": {"id": "CVE-A", "package": "p"}}),
+        ])
+        trends = compute_trends(history)
+        assert trends["regressions"] == []
+
 
 # ---------------------------------------------------------------------------
 # sparkline

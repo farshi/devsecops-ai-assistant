@@ -103,9 +103,10 @@ def _build_digest_data(
     direction = trends.get("total_findings_direction", "unknown")
     spark = sparkline(totals_over_time) if totals_over_time else ""
 
-    # New and resolved since last scan
+    # New, resolved, and regressions since last scan
     new_findings = trends.get("new_since_last", [])
     resolved_findings = trends.get("resolved_since_last", [])
+    regressions = trends.get("regressions", [])
 
     # Top priorities from latest triage
     action_items = []
@@ -143,6 +144,7 @@ def _build_digest_data(
         "snapshot_count": snapshot_count,
         "new_findings": new_findings,
         "resolved_findings": resolved_findings,
+        "regressions": regressions,
         "top_priorities": action_items,
         "mttr_days": mttr,
         "fix_coverage": {"fixable": fixable, "total": total},
@@ -190,9 +192,17 @@ def _format_digest_markdown(data: dict) -> str:
     # What changed
     new = data["new_findings"]
     resolved = data["resolved_findings"]
+    regressions = data.get("regressions", [])
 
-    if new or resolved:
+    if new or resolved or regressions:
         lines += ["## What Changed", ""]
+
+        if regressions:
+            lines.append(f"### Regressions ({len(regressions)})")
+            lines.append("*Findings that were resolved but came back:*")
+            for item in regressions:
+                lines.append(f"- {item['id']} ({item.get('package', '?')})")
+            lines.append("")
 
         if new:
             lines.append(f"### New ({len(new)})")
@@ -205,7 +215,7 @@ def _format_digest_markdown(data: dict) -> str:
             for item in resolved:
                 lines.append(f"- {item['id']} ({item.get('package', '?')})")
             lines.append("")
-    else:
+    if not new and not resolved and not regressions:
         lines += ["## What Changed", "", "No changes since last scan.", ""]
 
     # Top priorities

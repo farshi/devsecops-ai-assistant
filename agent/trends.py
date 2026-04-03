@@ -112,6 +112,9 @@ def compute_trends(history: dict) -> dict:
             info = prev_fingerprints.get(fp, {})
             resolved_since_last.append({"id": info.get("id", ""), "package": info.get("package", "")})
 
+    # Regressions: findings that were resolved but came back
+    regressions = _compute_regressions(snapshots)
+
     # MTTR: mean time to remediate
     mttr_days = _compute_mttr(snapshots)
 
@@ -128,9 +131,48 @@ def compute_trends(history: dict) -> dict:
         "tier_directions": {t: _direction(tier_over_time[t]) for t in tiers},
         "new_since_last": new_since_last,
         "resolved_since_last": resolved_since_last,
+        "regressions": regressions,
         "mttr_days": mttr_days,
         "top_recurring_packages": top_recurring,
     }
+
+
+def _compute_regressions(snapshots: List[dict]) -> List[dict]:
+    """Find findings that were resolved but reappeared in the latest snapshot.
+
+    A regression is a fingerprint that:
+    1. Appeared in some earlier snapshot(s)
+    2. Was absent for at least one snapshot
+    3. Reappeared in the latest snapshot
+    """
+    if len(snapshots) < 3:
+        return []
+
+    curr_fps = set(snapshots[-1].get("fingerprints", {}).keys())
+    curr_info = snapshots[-1].get("fingerprints", {})
+
+    regressions = []
+    for fp in curr_fps:
+        # Check if this fingerprint had a gap (was absent then returned)
+        was_present = False
+        was_absent = False
+        for snap in snapshots[:-1]:
+            snap_fps = set(snap.get("fingerprints", {}).keys())
+            if fp in snap_fps:
+                was_present = True
+            elif was_present:
+                # It was present before but now absent — gap detected
+                was_absent = True
+                break
+
+        if was_present and was_absent:
+            info = curr_info.get(fp, {})
+            regressions.append({
+                "id": info.get("id", ""),
+                "package": info.get("package", ""),
+            })
+
+    return regressions
 
 
 def _compute_mttr(snapshots: List[dict]) -> Optional[float]:

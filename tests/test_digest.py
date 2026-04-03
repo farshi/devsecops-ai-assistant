@@ -213,6 +213,7 @@ class TestFormatDigestMarkdown:
             "snapshot_count": 4,
             "new_findings": [{"id": "CVE-NEW", "package": "requests"}],
             "resolved_findings": [{"id": "CVE-OLD", "package": "flask"}],
+            "regressions": [{"id": "CVE-REGRESS", "package": "django"}],
             "top_priorities": [
                 {"rank": 1, "id": "CVE-2024-0001", "priority_tier": "critical",
                  "action": "Upgrade requests to >= 2.31.0"},
@@ -248,6 +249,18 @@ class TestFormatDigestMarkdown:
         assert "CVE-OLD" in md
         assert "### Resolved (1)" in md
 
+    def test_contains_regressions(self):
+        md = _format_digest_markdown(self._sample_data())
+        assert "CVE-REGRESS" in md
+        assert "### Regressions (1)" in md
+        assert "resolved but came back" in md
+
+    def test_no_regressions_section_when_empty(self):
+        data = self._sample_data()
+        data["regressions"] = []
+        md = _format_digest_markdown(data)
+        assert "Regressions" not in md
+
     def test_contains_top_priorities(self):
         md = _format_digest_markdown(self._sample_data())
         assert "CVE-2024-0001" in md
@@ -274,6 +287,7 @@ class TestFormatDigestMarkdown:
         data = self._sample_data()
         data["new_findings"] = []
         data["resolved_findings"] = []
+        data["regressions"] = []
         md = _format_digest_markdown(data)
         assert "No changes since last scan" in md
 
@@ -284,6 +298,7 @@ class TestFormatDigestMarkdown:
         data["top_priorities"] = []
         data["new_findings"] = []
         data["resolved_findings"] = []
+        data["regressions"] = []
         data["mttr_days"] = None
         data["fix_coverage"] = {"fixable": 0, "total": 0}
         data["decisions"] = {"dismissed": 0, "accepted": 0}
