@@ -473,6 +473,65 @@ def dismiss(path, cve, reason):
 
 
 # ---------------------------------------------------------------------------
+# trends
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--path", default=".", show_default=True, help="Project path.")
+@click.option("--json", "output_json", is_flag=True, default=False, help="Output as JSON.")
+def trends(path, output_json):
+    """Show vulnerability trends over time.
+
+    \b
+    Reads historical scan snapshots from .patchpilot/history.json
+    (auto-captured on each triage run) and displays trend analysis.
+
+    Example:
+      patchpilot trends --path ./myapp
+      patchpilot trends --path ./myapp --json
+    """
+    import os
+    from agent.trends import (
+        load_history,
+        compute_trends,
+        format_trend_report_markdown,
+        format_trend_report_json,
+    )
+    from agent.utils import slugify, timestamp as ts
+
+    history = load_history(path)
+    snapshots = history.get("snapshots", [])
+
+    if not snapshots:
+        click.echo("  No trend history found. Run `patchpilot triage` at least twice to see trends.")
+        return
+
+    if len(snapshots) < 2:
+        click.echo("  Only 1 snapshot in history. Run `patchpilot triage` again to start tracking trends.")
+        return
+
+    trend_data = compute_trends(history)
+
+    if output_json:
+        output = format_trend_report_json(trend_data)
+        ext = "json"
+    else:
+        output = format_trend_report_markdown(trend_data)
+        ext = "md"
+
+    click.echo(output)
+
+    # Save report
+    target_slug = slugify(os.path.basename(os.path.abspath(path)))
+    report_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
+    os.makedirs(report_dir, exist_ok=True)
+    report_path = os.path.join(report_dir, f"{target_slug}_trends_{ts()}.{ext}")
+    with open(report_path, "w") as f:
+        f.write(output)
+    click.echo(f"\n  Report saved → {report_path}")
+
+
+# ---------------------------------------------------------------------------
 # plan
 # ---------------------------------------------------------------------------
 
