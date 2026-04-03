@@ -562,6 +562,56 @@ def dismiss(path, cve, reason):
 # trends
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# digest
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--path", default=".", show_default=True, help="Project path.")
+@click.option("--target-name", required=True, help="Target name for report lookup.")
+@click.option("--json", "output_json", is_flag=True, default=False, help="Output as JSON.")
+@click.option("--days", default=7, show_default=True, help="Look-back window in days.")
+def digest(path, target_name, output_json, days):
+    """Generate weekly vulnerability triage digest.
+
+    \b
+    Reads existing .patchpilot/ data (no scan needed) and produces a
+    concise summary of current status, changes, trends, and top priorities.
+
+    Example:
+      patchpilot digest --path ./app --target-name myapp
+      patchpilot digest --path ./app --target-name myapp --days 14
+      patchpilot digest --path ./app --target-name myapp --json
+    """
+    import os
+    from agent.digest import generate_digest, format_digest_json
+    from agent.utils import slugify, timestamp as ts
+
+    result = generate_digest(path, target_name, days=days)
+
+    if "error" in result:
+        click.echo(f"  {result['error']}")
+        return
+
+    if output_json:
+        output = format_digest_json(result["data"])
+        ext = "json"
+    else:
+        output = result["markdown"]
+        ext = "md"
+
+    click.echo(output)
+
+    # Save report
+    target_slug = slugify(target_name)
+    report_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
+    os.makedirs(report_dir, exist_ok=True)
+    report_path = os.path.join(report_dir, f"{target_slug}_digest_{ts()}.{ext}")
+    with open(report_path, "w") as f:
+        f.write(output)
+    click.echo(f"\n  Report saved → {report_path}")
+
+
 @cli.command()
 @click.option("--path", default=".", show_default=True, help="Project path.")
 @click.option("--json", "output_json", is_flag=True, default=False, help="Output as JSON.")
