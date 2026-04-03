@@ -40,17 +40,33 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
 
     # --- checkov ---
     if "checkov" in scanners:
-        tf_files = glob.glob(os.path.join(path, "**", "*.tf"), recursive=True)
-        if not tf_files:
-            reason = f"no .tf files found under {path}"
+        # Quick check: skip if no IaC files found (avoids slow checkov startup)
+        iac_patterns = ["**/*.tf", "**/Dockerfile", "**/*.bicep",
+                        "**/*.template", "**/serverless.yml",
+                        "**/k8s/*.yaml", "**/kubernetes/*.yaml"]
+        has_iac = any(
+            glob.glob(os.path.join(path, pat), recursive=True)
+            for pat in iac_patterns
+        )
+        if not has_iac:
+            reason = f"no IaC files found under {path}"
             scanners_skipped.append({"scanner": "checkov", "reason": reason})
             findings_by_scanner["checkov"] = []
             notes.append(f"checkov skipped: {reason}")
         else:
-            # TODO: implement checkov runner
-            scanners_skipped.append({"scanner": "checkov", "reason": "runner not yet implemented"})
-            findings_by_scanner["checkov"] = []
-            notes.append("checkov skipped: runner not yet implemented")
+            raw_file = f"reports/{target_slug}_checkov_{date}.json"
+            try:
+                from devsecops.runners import run_checkov
+                from agent.plugins.scanners.checkov import CheckovScannerAdapter
+
+                raw = run_checkov.run(path, raw_file)
+                adapter = CheckovScannerAdapter()
+                findings_by_scanner["checkov"] = adapter.parse_list(raw)
+                scanners_run.append("checkov")
+            except RuntimeError as exc:
+                scanners_skipped.append({"scanner": "checkov", "reason": str(exc)})
+                findings_by_scanner["checkov"] = []
+                notes.append(f"checkov skipped: {exc}")
 
     # --- gitleaks ---
     if "gitleaks" in scanners:
