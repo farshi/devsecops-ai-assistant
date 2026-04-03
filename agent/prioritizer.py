@@ -405,6 +405,10 @@ def run_triage(
     # Save current findings as baseline for next run
     save_baseline(path, findings)
 
+    # Append snapshot to trend history
+    from agent.trends import append_snapshot
+    append_snapshot(path, result["triage"], findings)
+
     if enhance:
         result = enhance_triage_with_llm(result, ctx)
 
