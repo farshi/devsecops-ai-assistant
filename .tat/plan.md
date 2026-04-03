@@ -4,7 +4,6 @@
 
 | ID | Task | Status |
 |----|------|--------|
-| 25 | SARIF generic adapter | [ ] |
 | 26 | Checkov scanner integration (IaC) | [ ] |
 | 27 | PR comment integration (GitHub) | [ ] |
 | 28 | Compliance framework mapping (SOC2/ISO/CRA) | [ ] |
@@ -43,6 +42,7 @@
 | -- | Finding ownership (git blame/CODEOWNERS) | [x] |
 | -- | SBOM export (CycloneDX) | [x] |
 | 24 | Historical trend tracking | [x] |
+| 25 | SARIF generic adapter | [x] |
 
 ## Backlog
 
