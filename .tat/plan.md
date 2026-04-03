@@ -4,7 +4,6 @@
 
 | ID | Task | Status |
 |----|------|--------|
-| 27 | PR comment integration (GitHub) | [ ] |
 | 28 | Compliance framework mapping (SOC2/ISO/CRA) | [ ] |
 
 ## Done
@@ -43,6 +42,7 @@
 | 24 | Historical trend tracking | [x] |
 | 25 | SARIF generic adapter | [x] |
 | 26 | Checkov scanner integration (IaC) | [x] |
+| 27 | PR comment integration (GitHub) | [x] |
 
 ## Backlog
 
