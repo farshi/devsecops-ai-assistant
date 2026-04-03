@@ -220,7 +220,9 @@ def report(target_name, path, top, dry_run):
               help="Resolve finding owners via git blame/CODEOWNERS.")
 @click.option("--sarif", "sarif_path", default=None, type=click.Path(exists=True),
               help="Path to a SARIF 2.1.0 JSON file. Findings are merged into the triage pipeline.")
-def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues, owners, sarif_path):
+@click.option("--pr-comment", is_flag=True, default=False,
+              help="Post triage results as PR comment (requires gh CLI & PR context).")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues, owners, sarif_path, pr_comment):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -265,6 +267,9 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
             step += 1
         if owners:
             click.echo(f"    {step}. resolve finding owners via git blame/CODEOWNERS")
+            step += 1
+        if pr_comment:
+            click.echo(f"    {step}. post triage results as PR comment (requires gh CLI)")
             step += 1
         if fail_on:
             click.echo(f"    {step}. exit 1 if {fail_on}+ findings exist")
@@ -438,6 +443,18 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
 
         if not created_issues and not skipped_issues and not issue_errors:
             click.echo("  [issues] No action items to create issues for.")
+
+    # PR comment posting
+    if pr_comment:
+        from agent.pr_commenter import post_pr_comment
+        click.echo("")
+        click.echo("  [pr-comment] Posting triage to PR...")
+        comment_result = post_pr_comment(triage_data, result["markdown"], dry_run=dry_run)
+        if "error" in comment_result:
+            click.echo(f"  [pr-comment] Error: {comment_result['error']}")
+        else:
+            action = "Updated" if comment_result.get("updated") else "Posted"
+            click.echo(f"  [pr-comment] {action}: {comment_result['comment_url']}")
 
     # CRA disclosure generation
     if output_format == "cra":
