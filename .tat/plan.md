@@ -6,7 +6,7 @@
 |----|------|--------|
 | 29 | Weekly digest command — summary from baseline + trends | [x] |
 | 30 | Digest "what changed" — new/resolved/regression detection | [x] |
-| 31 | GitHub Actions cron workflow template — scheduled triage | [ ] |
+| 31 | GitHub Actions cron workflow template — scheduled triage | [x] |
 | 32 | Close command — mark findings resolved | [ ] |
 | 33 | Owner/team assignment in state | [ ] |
 | 34 | Digest PR comment mode | [ ] |
