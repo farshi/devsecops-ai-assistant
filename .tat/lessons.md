@@ -160,3 +160,9 @@ Patterns proven in this project that should be baked into TAT as features.
 **Source:** Runtime error (exit code 127)
 **Lesson:** The TAT skill template references `./scripts/tat-state.sh` but all TAT scripts are installed globally at `~/.tinyaiteam/scripts/`. Always use the full path `~/.tinyaiteam/scripts/<script>` when calling TAT helper scripts.
 **Rule:** Never prefix TAT scripts with `./scripts/` — use `~/.tinyaiteam/scripts/` instead.
+
+### T9b. Resume must check completion state, not just phase
+**When:** Sprint 5, task 23
+**Source:** User correction
+**Lesson:** When `/tat resume` lands on a phase (e.g., REVIEW), don't blindly re-execute the entire phase. Check whether the phase's output artifact already exists (e.g., `.tat/reviews/<task-id>-review.md` for REVIEW). If it does, the phase is complete — skip to the next phase (SHIP). Re-running a completed phase wastes time and confuses the user.
+**Rule:** At resume, check phase completion artifacts before re-running: REVIEW → check review artifact exists; SHIP → check PR exists; CODE → check commits exist on branch.

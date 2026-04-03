@@ -337,7 +337,7 @@ Goal: PatchPilot becomes part of the daily workflow — secrets, tickets, owners
 | 20 | Gitleaks scanner integration | E8 | [x] |
 | 21 | Ticket creation (GitHub Issues from triage) | E8 | [x] |
 | 22 | Finding ownership (git blame/CODEOWNERS) | E8 | [x] |
-| 23 | SBOM export (CycloneDX) | E8 | [ ] |
+| 23 | SBOM export (CycloneDX) | E8 | [x] |
 | 24 | Historical trend tracking | E8 | [ ] |
 
 ## Backlog
