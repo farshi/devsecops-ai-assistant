@@ -317,3 +317,14 @@ class TestCycloneDXPurlGeneration:
         sbom = json.loads(CycloneDXFormatter().format([], ctx))
         comp = next(c for c in sbom["components"] if c["name"] == "requests")
         assert comp["purl"] == "pkg:pypi/requests@2.31.0"
+
+    def test_npm_scoped_package(self):
+        """npm scoped packages like '@scope/pkg@1.2.3' parse correctly."""
+        ctx = _base_context()
+        ctx["dependencies"]["direct"] = ["@angular/core@17.0.0"]
+        ctx["dependencies"]["transitive"] = []
+        ctx["dependencies"]["package_manager"] = "npm"
+        sbom = json.loads(CycloneDXFormatter().format([], ctx))
+        comp = next(c for c in sbom["components"] if c["name"] == "@angular/core")
+        assert comp["version"] == "17.0.0"
+        assert comp["purl"] == "pkg:npm/@angular/core@17.0.0"

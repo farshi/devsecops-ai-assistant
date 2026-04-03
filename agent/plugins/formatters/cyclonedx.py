@@ -36,11 +36,20 @@ def _purl(name, version, pkg_manager):
 
 
 def _parse_dep_string(dep_str):
-    """Parse a dependency string like 'fastapi==0.110.0' or 'uvicorn' into (name, version)."""
-    for sep in ("==", ">=", "<=", "~=", "!=", ">", "<", "@"):
+    """Parse a dependency string like 'fastapi==0.110.0' or 'uvicorn' into (name, version).
+
+    Handles npm scoped packages like '@scope/pkg@1.2.3' by splitting on the
+    last '@' only when a version separator isn't found first.
+    """
+    for sep in ("==", ">=", "<=", "~=", "!=", ">", "<"):
         if sep in dep_str:
             parts = dep_str.split(sep, 1)
             return parts[0].strip(), parts[1].strip()
+    # Handle '@' version separator (e.g., 'pkg@1.2.3', '@scope/pkg@1.2.3')
+    # Use rfind to avoid splitting on npm scope prefix
+    at_pos = dep_str.rfind("@")
+    if at_pos > 0:  # must not be first char (that's a scope prefix)
+        return dep_str[:at_pos].strip(), dep_str[at_pos + 1:].strip()
     return dep_str.strip(), ""
 
 
