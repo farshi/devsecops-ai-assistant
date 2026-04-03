@@ -4,7 +4,6 @@
 
 | ID | Task | Status |
 |----|------|--------|
-| 24 | Historical trend tracking | [ ] |
 | 25 | SARIF generic adapter | [ ] |
 | 26 | Checkov scanner integration (IaC) | [ ] |
 | 27 | PR comment integration (GitHub) | [ ] |
@@ -43,6 +42,7 @@
 | -- | Ticket creation (GitHub Issues) | [x] |
 | -- | Finding ownership (git blame/CODEOWNERS) | [x] |
 | -- | SBOM export (CycloneDX) | [x] |
+| 24 | Historical trend tracking | [x] |
 
 ## Backlog
 
