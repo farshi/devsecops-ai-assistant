@@ -1,0 +1,106 @@
+# PatchPilot Weekly Triage — GitHub Actions workflow template
+#
+# Runs weekly vulnerability triage and posts a digest.
+# Copy this file to your repo's .github/workflows/ directory.
+#
+# Prerequisites:
+#   - pip install patchpilot (or add to requirements-dev.txt)
+#   - Trivy installed (auto-installed below)
+#   - ANTHROPIC_API_KEY secret (optional, for --enhance)
+#
+# Customize:
+#   - Change schedule cron to your preferred day/time
+#   - Adjust --top, --profile, --format flags
+#   - Add --enhance for AI-generated explanations (needs ANTHROPIC_API_KEY)
+
+name: PatchPilot Weekly Triage
+
+on:
+  schedule:
+    # Every Monday at 8:00 UTC
+    - cron: '0 8 * * 1'
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  TARGET_NAME: ${{ github.event.repository.name }}
+  PROJECT_PATH: '.'
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Install PatchPilot
+        run: pip install patchpilot
+
+      - name: Run triage
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          patchpilot triage \
+            --path ${{ env.PROJECT_PATH }} \
+            --target-name ${{ env.TARGET_NAME }} \
+            --profile quick \
+            --top 5 \
+            --fail-on critical
+
+      - name: Generate digest
+        run: |
+          patchpilot digest \
+            --path ${{ env.PROJECT_PATH }} \
+            --target-name ${{ env.TARGET_NAME }}
+
+      - name: Create summary issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find latest digest file
+          DIGEST=$(ls -t reports/*_digest_*.md 2>/dev/null | head -1)
+          if [ -z "$DIGEST" ]; then
+            echo "No digest found, skipping issue creation"
+            exit 0
+          fi
+
+          TITLE="[PatchPilot] Weekly Security Digest — $(date -u +%Y-%m-%d)"
+          BODY=$(cat "$DIGEST")
+
+          # Check for existing open digest issue
+          EXISTING=$(gh issue list --search "PatchPilot Weekly Security Digest" --state open --json number --limit 1 --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            # Update existing issue
+            gh issue comment "$EXISTING" --body "$BODY"
+            echo "Updated issue #$EXISTING"
+          else
+            # Create new issue
+            gh issue create \
+              --title "$TITLE" \
+              --body "$BODY" \
+              --label "security,patchpilot"
+            echo "Created new digest issue"
+          fi
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patchpilot-reports
+          path: reports/
+          retention-days: 90

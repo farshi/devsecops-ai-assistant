@@ -1,0 +1,55 @@
+# PatchPilot PR Triage — GitHub Actions workflow template
+#
+# Runs vulnerability triage on pull requests and posts results as a PR comment.
+# Copy this file to your repo's .github/workflows/ directory.
+#
+# Prerequisites:
+#   - pip install patchpilot
+#   - Trivy installed (auto-installed below)
+
+name: PatchPilot PR Triage
+
+on:
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  TARGET_NAME: ${{ github.event.repository.name }}
+  PROJECT_PATH: '.'
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Install PatchPilot
+        run: pip install patchpilot
+
+      - name: Run triage with PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          patchpilot triage \
+            --path ${{ env.PROJECT_PATH }} \
+            --target-name ${{ env.TARGET_NAME }} \
+            --profile quick \
+            --top 5 \
+            --new-only \
+            --pr-comment \
+            --fail-on critical
