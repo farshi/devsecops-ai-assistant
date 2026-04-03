@@ -218,7 +218,9 @@ def report(target_name, path, top, dry_run):
               help="Create GitHub Issues for top findings (requires gh CLI).")
 @click.option("--owners", is_flag=True, default=False,
               help="Resolve finding owners via git blame/CODEOWNERS.")
-def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues, owners):
+@click.option("--sarif", "sarif_path", default=None, type=click.Path(exists=True),
+              help="Path to a SARIF 2.1.0 JSON file. Findings are merged into the triage pipeline.")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues, owners, sarif_path):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -298,12 +300,49 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         # Find latest existing summary
         pattern = f"reports/{target_slug}_summary_*.json"
         matches = sorted(glob.glob(pattern))
-        if not matches:
+        if not matches and not sarif_path:
             raise click.ClickException(
-                f"No summary found for '{target_name}'. Run with --scan first."
+                f"No summary found for '{target_name}'. Run with --scan first or provide --sarif."
             )
-        summary_path = matches[-1]
-        click.echo(f"\n  [1/5] Using existing summary: {summary_path}")
+        if matches:
+            summary_path = matches[-1]
+            click.echo(f"\n  [1/5] Using existing summary: {summary_path}")
+        else:
+            # SARIF-only workflow: create minimal summary
+            summary_path = f"reports/{target_slug}_summary_{timestamp()}.json"
+            os.makedirs("reports", exist_ok=True)
+            with open(summary_path, "w") as f:
+                json.dump({
+                    "target_name": target_name,
+                    "target_slug": target_slug,
+                    "path": path,
+                    "profile": "sarif-only",
+                    "scanners_run": [],
+                    "findings": {},
+                }, f, indent=2)
+            click.echo(f"\n  [1/5] Created empty summary for SARIF import: {summary_path}")
+
+    # Inject SARIF findings into summary if provided
+    if sarif_path:
+        from agent.plugins.scanners.sarif import SARIFScannerAdapter
+        click.echo(f"  [sarif] Importing findings from {sarif_path}...")
+        sarif_findings = SARIFScannerAdapter().parse(sarif_path)
+        click.echo(f"  [sarif] {len(sarif_findings)} findings imported.")
+
+        with open(summary_path) as f:
+            summary_data = json.load(f)
+        summary_data.setdefault("findings", {})["sarif"] = [
+            {"id": sf.id, "severity": sf.severity, "title": sf.title,
+             "package": sf.package, "installed_version": sf.installed_version,
+             "fixed_version": sf.fixed_version, "location": sf.location,
+             "cvss_score": sf.cvss_score, "source_scanner": sf.source_scanner,
+             "finding_type": sf.finding_type}
+            for sf in sarif_findings
+        ]
+        if "sarif" not in summary_data.get("scanners_run", []):
+            summary_data.setdefault("scanners_run", []).append("sarif")
+        with open(summary_path, "w") as f:
+            json.dump(summary_data, f, indent=2)
 
     # Steps 2-5: Run triage pipeline
     click.echo("  [2/5] Building repo context...")
