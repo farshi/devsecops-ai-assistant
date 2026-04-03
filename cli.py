@@ -209,9 +209,9 @@ def report(target_name, path, top, dry_run):
 @click.option("--enhance/--no-enhance", default=False, show_default=True,
               help="Add AI-generated explanations (requires ANTHROPIC_API_KEY).")
 @click.option("--format", "output_format",
-              type=click.Choice(["default", "cra", "cyclonedx"]),
+              type=click.Choice(["default", "cra", "cyclonedx", "soc2", "iso27001"]),
               default="default", show_default=True,
-              help="Output format. 'cra' generates EU CRA disclosure document. 'cyclonedx' generates CycloneDX 1.5 SBOM.")
+              help="Output format. 'cra' generates EU CRA disclosure. 'cyclonedx' generates SBOM. 'soc2'/'iso27001' generate compliance reports.")
 @click.option("--new-only", is_flag=True, default=False,
               help="Only show findings NEW since last scan.")
 @click.option("--create-issues", is_flag=True, default=False,
@@ -485,6 +485,36 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         with open(sbom_file, "w") as f:
             f.write(sbom_doc)
         click.echo(f"    cyclonedx → {sbom_file}")
+
+    # SOC2 compliance report
+    if output_format == "soc2":
+        from agent.plugins.formatters.soc2 import SOC2ComplianceFormatter
+        from agent.prioritizer import _finding_from_dict
+        from agent.context_builder import build_context
+
+        ctx = build_context(path, summary_path)
+        all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
+
+        soc2_doc = SOC2ComplianceFormatter().format(all_findings, ctx)
+        soc2_file = f"reports/{target_slug}_soc2_{triage_ts}.md"
+        with open(soc2_file, "w") as f:
+            f.write(soc2_doc)
+        click.echo(f"    soc2     → {soc2_file}")
+
+    # ISO 27001 compliance report
+    if output_format == "iso27001":
+        from agent.plugins.formatters.iso27001 import ISO27001ComplianceFormatter
+        from agent.prioritizer import _finding_from_dict
+        from agent.context_builder import build_context
+
+        ctx = build_context(path, summary_path)
+        all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
+
+        iso_doc = ISO27001ComplianceFormatter().format(all_findings, ctx)
+        iso_file = f"reports/{target_slug}_iso27001_{triage_ts}.md"
+        with open(iso_file, "w") as f:
+            f.write(iso_doc)
+        click.echo(f"    iso27001 → {iso_file}")
 
     # CI exit code gating
     if fail_on:
