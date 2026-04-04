@@ -11,7 +11,7 @@
 | 33 | Owner/team assignment in state | [x] |
 | 34 | Digest PR comment mode | [x] |
 | 35 | Audit trail — decision log with timestamps | [x] |
-| 36 | Recurring workflow docs + example cron YAML | [ ] |
+| 36 | Recurring workflow docs + example cron YAML | [x] |
 
 ## Done
 

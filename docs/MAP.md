@@ -34,6 +34,7 @@ README.md             ← marketing overview (if user-facing change)
 | Monetization | — | — | Not in docs (internal) |
 | Constraints | `architecture.md` | Constraints | 2026-03-31 |
 | All ADRs | `decisions.md` | Per-entry | 2026-03-31 |
+| GitHub Actions Template (Epic CI/CD) | `recurring-workflows.md` | All | 2026-04-04 |
 
 ## Key Terms → Definitions Location
 
