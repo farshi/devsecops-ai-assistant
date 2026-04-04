@@ -81,13 +81,16 @@
 
 ### CI/CD integration
 - [ ] Guardrail / policy mode (configurable CI gate beyond --fail-on)
+- [ ] PR label assignment (security-reviewed, needs-review, blocked)
 - [ ] Policy-as-code generation (OPA, Sentinel)
 
 ### Scanner breadth
 - [ ] Grype scanner adapter
 
-### DynoTrust (separate repo — see .tat/dashboard-dynotrust.md)
-- Dashboard MVP, marketing site, monetization tiers
+### AI-Code Awareness (future)
+- [ ] AI-authored commit detection (Co-Authored-By headers, tool signatures)
+- [ ] AI-code risk multiplier in PR review scoring
+- [ ] Audit log: which files/functions were AI-generated
 
 ### Deferred indefinitely
 - Auto-remediation (low trust, high blast radius)
