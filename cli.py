@@ -209,9 +209,9 @@ def report(target_name, path, top, dry_run):
 @click.option("--enhance/--no-enhance", default=False, show_default=True,
               help="Add AI-generated explanations (requires ANTHROPIC_API_KEY).")
 @click.option("--format", "output_format",
-              type=click.Choice(["default", "cra", "cyclonedx", "spdx", "soc2", "iso27001"]),
+              type=click.Choice(["default", "cra", "cyclonedx", "spdx", "soc2", "iso27001", "executive"]),
               default="default", show_default=True,
-              help="Output format. 'cra' generates EU CRA disclosure. 'cyclonedx'/'spdx' generate SBOMs. 'soc2'/'iso27001' generate compliance reports.")
+              help="Output format. 'executive' = one-page summary. 'cra' = EU CRA disclosure. 'cyclonedx'/'spdx' = SBOMs. 'soc2'/'iso27001' = compliance.")
 @click.option("--new-only", is_flag=True, default=False,
               help="Only show findings NEW since last scan.")
 @click.option("--create-issues", is_flag=True, default=False,
@@ -536,6 +536,21 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         with open(iso_file, "w") as f:
             f.write(iso_doc)
         click.echo(f"    iso27001 → {iso_file}")
+
+    # Executive summary
+    if output_format == "executive":
+        from agent.plugins.formatters.executive import ExecutiveSummaryFormatter
+        from agent.prioritizer import _finding_from_dict
+        from agent.context_builder import build_context
+
+        ctx = build_context(path, summary_path)
+        all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
+
+        exec_doc = ExecutiveSummaryFormatter().format(all_findings, ctx)
+        exec_file = f"reports/{target_slug}_executive_{triage_ts}.md"
+        with open(exec_file, "w") as f:
+            f.write(exec_doc)
+        click.echo(f"    executive → {exec_file}")
 
     # CI exit code gating
     if fail_on:
