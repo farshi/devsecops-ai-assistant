@@ -98,6 +98,16 @@ Reachability is the core differentiator: a CVSS 9.8 in an unused transitive depe
 | `patchpilot plan` | Secure implementation plan for a feature (coming soon) |
 | `patchpilot review` | Security review of PR changes (coming soon) |
 
+## Recurring Workflows
+
+Set up PatchPilot to run automatically — weekly digests as GitHub issues, PR-gated triage, or both. See [docs/recurring-workflows.md](docs/recurring-workflows.md) for full setup guide.
+
+```bash
+# Copy workflow templates to your repo
+cp .github/workflows/patchpilot-weekly.yml <your-repo>/.github/workflows/
+cp .github/workflows/patchpilot-pr.yml <your-repo>/.github/workflows/
+```
+
 ## Plugin Architecture
 
 PatchPilot is extensible through four plugin types:
