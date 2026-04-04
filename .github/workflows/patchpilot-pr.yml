@@ -38,7 +38,7 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
       - name: Install PatchPilot
-        run: pip install patchpilot
+        run: pip install .
 
       - name: Run triage with PR comment
         env:
