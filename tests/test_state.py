@@ -14,6 +14,8 @@ from agent.state import (
     dismiss_finding,
     dismiss_cve,
     accept_risk,
+    close_finding,
+    close_cve,
     filter_dismissed,
     save_baseline,
     load_baseline,
@@ -318,3 +320,62 @@ def test_baseline_path_helper(tmp_path):
     """_baseline_path returns path inside .patchpilot/."""
     p = _baseline_path(str(tmp_path))
     assert p == str(tmp_path / STATE_DIR / BASELINE_FILE)
+
+
+# ---------------------------------------------------------------------------
+# close_finding / close_cve
+# ---------------------------------------------------------------------------
+
+
+def test_close_finding(tmp_path):
+    """close_finding stores fingerprint in closed section."""
+    f = _make_finding("CVE-2023-CLOSE", "flask", "2.0.0")
+    close_finding(str(tmp_path), f, reason="upgraded to 2.1.0")
+    state = load_state(str(tmp_path))
+    fp = f.fingerprint()
+    assert fp in state["closed"]
+    assert state["closed"][fp]["cve"] == "CVE-2023-CLOSE"
+    assert state["closed"][fp]["package"] == "flask"
+    assert state["closed"][fp]["reason"] == "upgraded to 2.1.0"
+    assert "closed_at" in state["closed"][fp]
+
+
+def test_close_cve(tmp_path):
+    """close_cve stores CVE ID in closed section."""
+    close_cve(str(tmp_path), "CVE-2023-CLOSE-CVE", reason="patched")
+    state = load_state(str(tmp_path))
+    assert "CVE-2023-CLOSE-CVE" in state["closed"]
+    assert state["closed"]["CVE-2023-CLOSE-CVE"]["reason"] == "patched"
+    assert "closed_at" in state["closed"]["CVE-2023-CLOSE-CVE"]
+
+
+def test_filter_dismissed_includes_closed(tmp_path):
+    """Closed findings are filtered from triage results."""
+    f1 = _make_finding("CVE-2023-OPEN")
+    f2 = _make_finding("CVE-2023-CLOSED", "flask", "2.0.0")
+    close_finding(str(tmp_path), f2, reason="fixed")
+    result = filter_dismissed([f1, f2], str(tmp_path))
+    assert len(result) == 1
+    assert result[0].id == "CVE-2023-OPEN"
+
+
+def test_filter_dismissed_includes_closed_cve(tmp_path):
+    """Closed CVEs (by ID) are filtered from triage results."""
+    f1 = _make_finding("CVE-2023-OPEN")
+    f2 = _make_finding("CVE-2023-CLOSED-BY-CVE")
+    close_cve(str(tmp_path), "CVE-2023-CLOSED-BY-CVE", reason="fixed")
+    result = filter_dismissed([f1, f2], str(tmp_path))
+    assert len(result) == 1
+    assert result[0].id == "CVE-2023-OPEN"
+
+
+def test_load_state_backward_compat_no_closed_key(tmp_path):
+    """Old state files without 'closed' key get it added on load."""
+    state_dir = tmp_path / STATE_DIR
+    state_dir.mkdir()
+    old_state = {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}}
+    with open(state_dir / STATE_FILE, "w") as f:
+        json.dump(old_state, f)
+    state = load_state(str(tmp_path))
+    assert "closed" in state
+    assert state["closed"] == {}
