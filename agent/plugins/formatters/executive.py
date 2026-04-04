@@ -31,7 +31,7 @@ def _posture_score(findings: list[Finding]) -> int:
             deduction = int(deduction * 1.5)
 
         # Reduce deduction if fix is available (easier to resolve)
-        if f.fix_available:
+        if f.fix_available and deduction > 0:
             deduction = max(1, deduction - 1)
 
         score -= deduction
