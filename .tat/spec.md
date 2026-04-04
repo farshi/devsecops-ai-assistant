@@ -278,5 +278,9 @@ Based on competitive research (March 2026, 30+ tools analyzed):
 - Python CLI (Click framework) — keep existing foundation
 - LLM APIs (Claude + GPT) — user provides their own keys
 - Trivy as primary scanner — free, well-maintained, broad coverage
-- No web UI — CLI + file output + CI integration only
-- No database — file-based state only
+- CLI + file output + CI integration
+- File-based state (.patchpilot/)
+
+## DynoTrust (separate repo)
+Commercial compliance dashboard built on PatchPilot. Separate brand, separate repo.
+Full spec, tech stack, UX, and tasks: `.tat/dashboard-dynotrust.md`
