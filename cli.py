@@ -651,7 +651,9 @@ def unassign(path, cve):
 @click.option("--target-name", required=True, help="Target name for report lookup.")
 @click.option("--json", "output_json", is_flag=True, default=False, help="Output as JSON.")
 @click.option("--days", default=7, show_default=True, help="Look-back window in days.")
-def digest(path, target_name, output_json, days):
+@click.option("--pr-comment", is_flag=True, default=False,
+              help="Post digest as PR comment (requires gh CLI & PR context).")
+def digest(path, target_name, output_json, days, pr_comment):
     """Generate weekly vulnerability triage digest.
 
     \b
@@ -690,6 +692,20 @@ def digest(path, target_name, output_json, days):
     with open(report_path, "w") as f:
         f.write(output)
     click.echo(f"\n  Report saved → {report_path}")
+
+    # PR comment
+    if pr_comment:
+        from agent.pr_commenter import post_pr_comment, DIGEST_MARKER
+        click.echo("")
+        click.echo("  [pr-comment] Posting digest to PR...")
+        comment_result = post_pr_comment(
+            result["data"], result["markdown"], marker=DIGEST_MARKER
+        )
+        if "error" in comment_result:
+            click.echo(f"  [pr-comment] Error: {comment_result['error']}")
+        else:
+            action = "Updated" if comment_result.get("updated") else "Posted"
+            click.echo(f"  [pr-comment] {action}: {comment_result['comment_url']}")
 
 
 @cli.command()
