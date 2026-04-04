@@ -227,6 +227,10 @@ Example digest header:
 - The `--pr-comment` flag requires the `gh` CLI to be available and a valid PR context (`GITHUB_REF`).
 - Check the workflow logs for `[pr-comment]` output.
 
+### State commit fails on forks
+
+- The `git push` step in the state commit requires `contents: write` permission. This is not available on forked repos with default `GITHUB_TOKEN`. For forks, use a personal access token or skip the state commit step.
+
 ### Triage fails with "Trivy not found"
 
 - The workflow templates install Trivy automatically. If using a custom runner, install it manually or use the `aquasecurity/trivy-action` GitHub Action.
