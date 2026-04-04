@@ -559,6 +559,35 @@ def dismiss(path, cve, reason):
 
 
 # ---------------------------------------------------------------------------
+# close
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--path", default=".", show_default=True, help="Project path.")
+@click.option("--cve", required=True, help="CVE ID to mark as resolved.")
+@click.option("--reason", default="", help="How it was resolved (e.g. 'upgraded to 2.1.0').")
+def close(path, cve, reason):
+    """Mark a finding as resolved/remediated.
+
+    \b
+    Unlike dismiss (noise) or accept-risk (known risk), close means
+    the vulnerability was actually fixed. Closed findings will reappear
+    as regressions if the CVE shows up again in a future scan.
+
+    \b
+    Example:
+      patchpilot close --cve CVE-2023-xxxxx --reason "upgraded to 2.1.0"
+    """
+    import os
+    from agent.state import close_cve
+
+    close_cve(path, cve, reason)
+    state_file = os.path.join(path, ".patchpilot", "state.json")
+    click.echo(f"  Closed {cve}" + (f" — {reason}" if reason else ""))
+    click.echo(f"  State saved → {state_file}")
+
+
+# ---------------------------------------------------------------------------
 # trends
 # ---------------------------------------------------------------------------
 
@@ -646,7 +675,9 @@ def trends(path, output_json):
         click.echo("  Only 1 snapshot in history. Run `patchpilot triage` again to start tracking trends.")
         return
 
-    trend_data = compute_trends(history)
+    from agent.state import load_state as _load_state
+    closed = _load_state(path).get("closed", {})
+    trend_data = compute_trends(history, closed=closed)
 
     if output_json:
         output = format_trend_report_json(trend_data)

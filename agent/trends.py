@@ -63,10 +63,12 @@ def append_snapshot(
         json.dump(history, f, indent=2)
 
 
-def compute_trends(history: dict) -> dict:
+def compute_trends(history: dict, closed: Optional[dict] = None) -> dict:
     """Compute trend metrics from historical snapshots.
 
     Requires at least 2 snapshots for meaningful results.
+    ``closed`` is the ``state["closed"]`` dict from state.json, used to
+    detect regressions on explicitly-closed findings.
     """
     snapshots = history.get("snapshots", [])
     if not snapshots:
@@ -113,7 +115,7 @@ def compute_trends(history: dict) -> dict:
             resolved_since_last.append({"id": info.get("id", ""), "package": info.get("package", "")})
 
     # Regressions: findings that were resolved but came back
-    regressions = _compute_regressions(snapshots)
+    regressions = _compute_regressions(snapshots, closed=closed)
 
     # MTTR: mean time to remediate
     mttr_days = _compute_mttr(snapshots)
@@ -137,40 +139,74 @@ def compute_trends(history: dict) -> dict:
     }
 
 
-def _compute_regressions(snapshots: List[dict]) -> List[dict]:
+def _compute_regressions(
+    snapshots: List[dict], closed: Optional[dict] = None
+) -> List[dict]:
     """Find findings that were resolved but reappeared in the latest snapshot.
 
     A regression is a fingerprint that:
     1. Appeared in some earlier snapshot(s)
     2. Was absent for at least one snapshot
     3. Reappeared in the latest snapshot
-    """
-    if len(snapshots) < 3:
-        return []
 
-    curr_fps = set(snapshots[-1].get("fingerprints", {}).keys())
-    curr_info = snapshots[-1].get("fingerprints", {})
+    OR: was explicitly closed in state but reappeared in the latest scan.
+    Explicitly-closed regressions are flagged even with fewer than 3 snapshots.
+    """
+    curr_fps = set()
+    curr_info: dict = {}
+    if snapshots:
+        curr_fps = set(snapshots[-1].get("fingerprints", {}).keys())
+        curr_info = snapshots[-1].get("fingerprints", {})
 
     regressions = []
-    for fp in curr_fps:
-        # Check if this fingerprint had a gap (was absent then returned)
-        was_present = False
-        was_absent = False
-        for snap in snapshots[:-1]:
-            snap_fps = set(snap.get("fingerprints", {}).keys())
-            if fp in snap_fps:
-                was_present = True
-            elif was_present:
-                # It was present before but now absent — gap detected
-                was_absent = True
-                break
+    seen_fps: set = set()
+    seen_cves: set = set()
 
-        if was_present and was_absent:
-            info = curr_info.get(fp, {})
-            regressions.append({
-                "id": info.get("id", ""),
-                "package": info.get("package", ""),
-            })
+    # Check explicitly closed findings that reappeared
+    if closed:
+        for key, entry in closed.items():
+            cve_id = entry.get("cve", key)
+            # Match by fingerprint (key is fingerprint) or by CVE ID
+            matched_fp = None
+            if key in curr_fps:
+                matched_fp = key
+            else:
+                for fp, info in curr_info.items():
+                    if info.get("id") == cve_id:
+                        matched_fp = fp
+                        break
+            if matched_fp and cve_id not in seen_cves:
+                info = curr_info.get(matched_fp, {})
+                regressions.append({
+                    "id": info.get("id", cve_id),
+                    "package": info.get("package", entry.get("package", "")),
+                    "regression_type": "closed",
+                })
+                seen_fps.add(matched_fp)
+                seen_cves.add(cve_id)
+
+    # History-based regressions (need 3+ snapshots)
+    if len(snapshots) >= 3:
+        for fp in curr_fps:
+            if fp in seen_fps:
+                continue
+            was_present = False
+            was_absent = False
+            for snap in snapshots[:-1]:
+                snap_fps = set(snap.get("fingerprints", {}).keys())
+                if fp in snap_fps:
+                    was_present = True
+                elif was_present:
+                    was_absent = True
+                    break
+
+            if was_present and was_absent:
+                info = curr_info.get(fp, {})
+                regressions.append({
+                    "id": info.get("id", ""),
+                    "package": info.get("package", ""),
+                    "regression_type": "history",
+                })
 
     return regressions
 
