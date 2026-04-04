@@ -15,6 +15,7 @@ from typing import Optional
 
 
 COMMENT_MARKER = "<!-- patchpilot:triage -->"
+DIGEST_MARKER = "<!-- patchpilot:digest -->"
 
 
 # ---------------------------------------------------------------------------
@@ -27,26 +28,29 @@ def post_pr_comment(
     pr_number: Optional[int] = None,
     repo: Optional[str] = None,
     dry_run: bool = False,
+    marker: Optional[str] = None,
 ) -> dict:
-    """Post triage results as a PR comment.
+    """Post results as a PR comment.
 
     Args:
-        triage_data: The triage dict from run_triage()["triage"].
-        markdown: Pre-generated markdown from run_triage()["markdown"].
+        triage_data: Data dict (triage or digest).
+        markdown: Pre-generated markdown content.
         pr_number: PR number. Auto-detected if None.
         repo: Optional "owner/repo" override.
         dry_run: If True, show what would be posted.
+        marker: HTML comment marker for dedup. Defaults to COMMENT_MARKER.
 
     Returns:
         {"comment_url": "...", "updated": bool} or {"error": "..."}
     """
-    body = _build_comment_body(markdown)
+    marker = marker or COMMENT_MARKER
+    body = _build_comment_body(markdown, marker=marker)
 
     if dry_run:
         summary = triage_data.get("summary", {})
         total = sum(summary.get(t, 0) for t in ("critical", "high", "medium", "low", "noise"))
         return {
-            "comment_url": f"[dry-run] would post triage ({total} findings) to PR",
+            "comment_url": f"[dry-run] would post ({total} findings) to PR",
             "updated": False,
         }
 
@@ -62,7 +66,7 @@ def post_pr_comment(
         }
 
     # Check for existing PatchPilot comment to update
-    existing_id = _find_existing_comment(pr_number, repo)
+    existing_id = _find_existing_comment(pr_number, repo, marker=marker)
 
     if existing_id:
         return _update_comment(existing_id, body, repo)
@@ -120,22 +124,23 @@ def _detect_pr_number() -> Optional[int]:
 
 
 def _find_existing_comment(
-    pr_number: int, repo: Optional[str] = None
+    pr_number: int, repo: Optional[str] = None, marker: Optional[str] = None
 ) -> Optional[int]:
-    """Search PR comments for an existing PatchPilot triage comment.
+    """Search PR comments for an existing PatchPilot comment.
 
     Returns the comment ID if found, None otherwise.
     """
+    marker = marker or COMMENT_MARKER
     cmd = [
         "gh", "api",
         f"repos/{{owner}}/{{repo}}/issues/{pr_number}/comments",
-        "--jq", f'[.[] | select(.body | contains("{COMMENT_MARKER}"))][0].id',
+        "--jq", f'[.[] | select(.body | contains("{marker}"))][0].id',
     ]
     if repo:
         cmd = [
             "gh", "api",
             f"repos/{repo}/issues/{pr_number}/comments",
-            "--jq", f'[.[] | select(.body | contains("{COMMENT_MARKER}"))][0].id',
+            "--jq", f'[.[] | select(.body | contains("{marker}"))][0].id',
         ]
 
     try:
@@ -148,14 +153,15 @@ def _find_existing_comment(
     return None
 
 
-def _build_comment_body(markdown: str) -> str:
-    """Wrap triage markdown with PatchPilot header and dedup marker."""
+def _build_comment_body(markdown: str, marker: Optional[str] = None) -> str:
+    """Wrap markdown with PatchPilot header and dedup marker."""
+    marker = marker or COMMENT_MARKER
     today = date.today().isoformat()
     return (
         f"{markdown}\n\n"
         f"---\n"
         f"*Posted by [PatchPilot](https://github.com/farshi/devsecops-ai-assistant) — {today}*\n"
-        f"{COMMENT_MARKER}\n"
+        f"{marker}\n"
     )
 
 

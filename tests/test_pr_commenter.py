@@ -8,6 +8,7 @@ import pytest
 
 from agent.pr_commenter import (
     COMMENT_MARKER,
+    DIGEST_MARKER,
     post_pr_comment,
     _check_gh_available,
     _detect_pr_number,
@@ -236,4 +237,35 @@ class TestPostPrComment:
     def test_explicit_pr_number(self, mock_create, mock_find, mock_gh):
         mock_create.return_value = {"comment_url": "url", "updated": False}
         post_pr_comment(SAMPLE_TRIAGE, SAMPLE_MARKDOWN, pr_number=55)
-        mock_find.assert_called_once_with(55, None)
+        mock_find.assert_called_once_with(55, None, marker=COMMENT_MARKER)
+
+    @patch("agent.pr_commenter._check_gh_available", return_value=True)
+    @patch("agent.pr_commenter._find_existing_comment", return_value=None)
+    @patch("agent.pr_commenter._create_comment")
+    def test_custom_marker_passed_to_find(self, mock_create, mock_find, mock_gh):
+        mock_create.return_value = {"comment_url": "url", "updated": False}
+        post_pr_comment(SAMPLE_TRIAGE, SAMPLE_MARKDOWN, pr_number=10, marker=DIGEST_MARKER)
+        mock_find.assert_called_once_with(10, None, marker=DIGEST_MARKER)
+
+    def test_custom_marker_in_dry_run(self):
+        result = post_pr_comment(SAMPLE_TRIAGE, SAMPLE_MARKDOWN, dry_run=True, marker=DIGEST_MARKER)
+        assert "dry-run" in result["comment_url"]
+
+
+# ---------------------------------------------------------------------------
+# Custom marker support
+# ---------------------------------------------------------------------------
+
+class TestCustomMarker:
+    def test_build_body_with_digest_marker(self):
+        body = _build_comment_body(SAMPLE_MARKDOWN, marker=DIGEST_MARKER)
+        assert DIGEST_MARKER in body
+        assert COMMENT_MARKER not in body
+
+    def test_build_body_default_marker(self):
+        body = _build_comment_body(SAMPLE_MARKDOWN)
+        assert COMMENT_MARKER in body
+
+    def test_digest_marker_is_distinct(self):
+        assert DIGEST_MARKER != COMMENT_MARKER
+        assert "digest" in DIGEST_MARKER
