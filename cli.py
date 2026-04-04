@@ -760,6 +760,73 @@ def deadlines(path, filter_status, output_json):
     click.echo(format_deadlines_table(dl))
 
 
+
+# ---------------------------------------------------------------------------
+# portfolio
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--repo", "repo_paths", multiple=True, required=True,
+              help="Path to a repo with .patchpilot/ data. Repeat for multiple repos.")
+@click.option("--json", "output_json", is_flag=True, default=False, help="Output as JSON.")
+def portfolio(repo_paths, output_json):
+    """Aggregate security posture across multiple repos.
+
+    \b
+    Reads .patchpilot/ state from each repo and produces a unified
+    portfolio view — total findings, per-repo breakdown, and CRA deadlines.
+
+    \b
+    Example:
+      patchpilot portfolio --repo ./api --repo ./web --repo ./worker
+      patchpilot portfolio --repo ~/projects/app1 --repo ~/projects/app2 --json
+    """
+    import json as json_mod
+    from agent.portfolio import aggregate_repos, format_portfolio_table
+
+    agg = aggregate_repos(list(repo_paths))
+
+    if output_json:
+        # Serialize without internal state objects
+        output = {
+            "totals": agg["totals"],
+            "repos": [
+                {
+                    "name": r["name"],
+                    "path": r["path"],
+                    "has_data": r["has_data"],
+                    "findings": (r["latest_snapshot"] or {}).get("total_findings", 0),
+                    "summary": (r["latest_snapshot"] or {}).get("summary", {}),
+                    "snapshot_count": r["snapshot_count"],
+                    "deadline_summary": r["deadline_summary"],
+                }
+                for r in agg["repos"]
+            ],
+        }
+        click.echo(json_mod.dumps(output, indent=2))
+        return
+
+    click.echo("")
+    click.echo(format_portfolio_table(agg))
+
+    # Highlight overdue deadlines across all repos
+    overdue_all = []
+    for repo in agg["repos"]:
+        for item in repo["deadline_summary"].get("overdue_findings", []):
+            item["repo"] = repo["name"]
+            overdue_all.append(item)
+
+    if overdue_all:
+        overdue_all.sort(key=lambda x: x["days_overdue"], reverse=True)
+        click.echo(f"  ⚠ Overdue across portfolio ({len(overdue_all)}):")
+        for item in overdue_all[:10]:
+            click.echo(
+                f"    [{item['repo']}] {item['cve']} ({item['severity']}) — "
+                f"{item['days_overdue']}d overdue"
+            )
+        click.echo("")
+
+
 # ---------------------------------------------------------------------------
 # trends
 # ---------------------------------------------------------------------------
