@@ -134,6 +134,11 @@ def _build_digest_data(
     # Snapshot count
     snapshot_count = trends.get("snapshot_count", len(snapshots))
 
+    # CRA deadlines
+    from agent.deadlines import summarize_deadlines
+    cra_deadlines = state.get("cra_deadlines", {})
+    deadline_summary = summarize_deadlines(cra_deadlines) if cra_deadlines else None
+
     return {
         "target_name": target_name,
         "period": {"start": period_start, "end": period_end, "days": days},
@@ -151,6 +156,7 @@ def _build_digest_data(
         "fix_coverage": {"fixable": fixable, "total": total},
         "decisions": {"dismissed": dismissed_count, "accepted": accepted_count},
         "recurring_packages": recurring,
+        "cra_deadlines": deadline_summary,
     }
 
 
@@ -255,6 +261,27 @@ def _format_digest_markdown(data: dict) -> str:
             parts.append(f"{decisions['accepted']} risks accepted")
         lines.append(" | ".join(parts))
         lines.append("")
+
+    # CRA Deadlines
+    dl = data.get("cra_deadlines")
+    if dl and (dl.get("overdue", 0) > 0 or dl.get("warning", 0) > 0):
+        lines += ["## CRA Deadlines", ""]
+        if dl["overdue"] > 0:
+            lines.append(f"**⚠ {dl['overdue']} OVERDUE** — past remediation deadline")
+            for item in dl.get("overdue_findings", [])[:5]:
+                lines.append(
+                    f"- {item['cve']} ({item['severity']}) — "
+                    f"{item['days_overdue']}d overdue, deadline: {item['deadline']}"
+                )
+            lines.append("")
+        if dl["warning"] > 0:
+            lines.append(f"**⏰ {dl['warning']} DUE SOON** — within 3 days of deadline")
+            for item in dl.get("warning_findings", [])[:5]:
+                lines.append(
+                    f"- {item['cve']} ({item['severity']}) — "
+                    f"{item['days_remaining']}d remaining, deadline: {item['deadline']}"
+                )
+            lines.append("")
 
     # Recurring packages
     recurring = data["recurring_packages"]

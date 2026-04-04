@@ -409,6 +409,13 @@ def run_triage(
     from agent.trends import append_snapshot
     append_snapshot(path, result["triage"], findings)
 
+    # Update CRA deadline tracking
+    from agent.deadlines import compute_deadlines_for_findings
+    from agent.state import load_deadlines, save_deadlines
+    existing_deadlines = load_deadlines(path)
+    updated_deadlines = compute_deadlines_for_findings(findings, existing_deadlines)
+    save_deadlines(path, updated_deadlines)
+
     if enhance:
         result = enhance_triage_with_llm(result, ctx)
 

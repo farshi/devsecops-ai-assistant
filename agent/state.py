@@ -50,21 +50,23 @@ def load_state(project_path: str) -> dict:
     """
     path = _state_path(project_path)
     if not os.path.isfile(path):
-        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}, "assignments": {}}
+        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}, "assignments": {}, "cra_deadlines": {}}
 
     try:
         with open(path) as f:
             state = json.load(f)
-        # Ensure dismissed_cves key exists in older state files
+        # Ensure keys exist in older state files
         if "dismissed_cves" not in state:
             state["dismissed_cves"] = {}
         if "closed" not in state:
             state["closed"] = {}
         if "assignments" not in state:
             state["assignments"] = {}
+        if "cra_deadlines" not in state:
+            state["cra_deadlines"] = {}
         return state
     except (json.JSONDecodeError, OSError):
-        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}, "assignments": {}}
+        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}, "assignments": {}, "cra_deadlines": {}}
 
 
 def save_state(project_path: str, state: dict) -> str:
@@ -169,6 +171,10 @@ def close_finding(project_path: str, finding: Finding, reason: str = "") -> None
         "reason": reason,
         "closed_at": datetime.now().isoformat()[:10],
     }
+    # Mark CRA deadline as met
+    if fp in state.get("cra_deadlines", {}):
+        state["cra_deadlines"][fp]["status"] = "met"
+        state["cra_deadlines"][fp]["met_at"] = datetime.now().isoformat()[:10]
     save_state(project_path, state)
     _append_audit(project_path, {
         "action": "close",
@@ -218,6 +224,19 @@ def get_assignments(project_path: str) -> dict:
     """Return all CVE assignments from state."""
     state = load_state(project_path)
     return state.get("assignments", {})
+
+
+def load_deadlines(project_path: str) -> dict:
+    """Load CRA deadline entries from state."""
+    state = load_state(project_path)
+    return state.get("cra_deadlines", {})
+
+
+def save_deadlines(project_path: str, deadlines: dict) -> None:
+    """Save CRA deadline entries to state."""
+    state = load_state(project_path)
+    state["cra_deadlines"] = deadlines
+    save_state(project_path, state)
 
 
 def filter_dismissed(findings: list, project_path: str) -> list:

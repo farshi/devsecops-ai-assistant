@@ -698,6 +698,69 @@ def audit(path, cve, output_json, max_entries):
 
 
 # ---------------------------------------------------------------------------
+# deadlines
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--path", default=".", show_default=True, help="Project path.")
+@click.option("--status", "filter_status", default=None,
+              type=click.Choice(["overdue", "warning", "open", "met"]),
+              help="Filter by deadline status.")
+@click.option("--json", "output_json", is_flag=True, default=False, help="Output as JSON.")
+def deadlines(path, filter_status, output_json):
+    """Show CRA remediation deadlines for tracked findings.
+
+    \b
+    Displays deadline status for all findings with CRA timeline tracking.
+    Findings are auto-tracked when triage runs. Deadlines are based on
+    severity: critical=24h, high=7d, medium=30d, low/info=90d.
+
+    \b
+    Example:
+      patchpilot deadlines
+      patchpilot deadlines --status overdue
+      patchpilot deadlines --json
+    """
+    import json as json_mod
+    from agent.state import load_deadlines
+    from agent.deadlines import summarize_deadlines, format_deadlines_table, deadline_status as dl_status
+
+    dl = load_deadlines(path)
+
+    if not dl:
+        click.echo("  No CRA deadlines tracked yet.")
+        click.echo("  Run 'patchpilot triage' to start tracking deadlines.")
+        return
+
+    if filter_status:
+        dl = {
+            fp: entry for fp, entry in dl.items()
+            if (entry.get("status") == filter_status) or
+               (entry.get("status") != "met" and entry.get("deadline") and
+                dl_status(entry["deadline"]) == filter_status)
+        }
+
+    if output_json:
+        summary = summarize_deadlines(dl)
+        click.echo(json_mod.dumps(summary, indent=2))
+        return
+
+    summary = summarize_deadlines(dl)
+    click.echo("")
+    click.echo(f"  CRA Deadlines: {summary['total']} tracked")
+
+    if summary["overdue"] > 0:
+        click.echo(f"  ⚠ OVERDUE: {summary['overdue']} finding(s) past deadline")
+    if summary["warning"] > 0:
+        click.echo(f"  ⏰ DUE SOON: {summary['warning']} finding(s) within 3 days")
+    if summary["met"] > 0:
+        click.echo(f"  ✓ MET: {summary['met']} deadline(s) met")
+
+    click.echo("")
+    click.echo(format_deadlines_table(dl))
+
+
+# ---------------------------------------------------------------------------
 # trends
 # ---------------------------------------------------------------------------
 
