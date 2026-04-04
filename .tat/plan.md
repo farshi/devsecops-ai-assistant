@@ -8,7 +8,7 @@
 | 30 | Digest "what changed" — new/resolved/regression detection | [x] |
 | 31 | GitHub Actions cron workflow template — scheduled triage | [x] |
 | 32 | Close command — mark findings resolved | [x] |
-| 33 | Owner/team assignment in state | [ ] |
+| 33 | Owner/team assignment in state | [x] |
 | 34 | Digest PR comment mode | [ ] |
 | 35 | Audit trail — decision log with timestamps | [ ] |
 | 36 | Recurring workflow docs + example cron YAML | [ ] |

@@ -49,7 +49,7 @@ def load_state(project_path: str) -> dict:
     """
     path = _state_path(project_path)
     if not os.path.isfile(path):
-        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}}
+        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}, "assignments": {}}
 
     try:
         with open(path) as f:
@@ -59,9 +59,11 @@ def load_state(project_path: str) -> dict:
             state["dismissed_cves"] = {}
         if "closed" not in state:
             state["closed"] = {}
+        if "assignments" not in state:
+            state["assignments"] = {}
         return state
     except (json.JSONDecodeError, OSError):
-        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}}
+        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}, "assignments": {}}
 
 
 def save_state(project_path: str, state: dict) -> str:
@@ -135,6 +137,30 @@ def close_cve(project_path: str, cve_id: str, reason: str = "") -> None:
         "closed_at": datetime.now().isoformat()[:10],
     }
     save_state(project_path, state)
+
+
+def assign_cve(project_path: str, cve_id: str, assigned_to: str, reason: str = "") -> None:
+    """Assign a CVE to a person or team for remediation tracking."""
+    state = load_state(project_path)
+    state["assignments"][cve_id] = {
+        "assigned_to": assigned_to,
+        "assigned_at": datetime.now().isoformat()[:10],
+        "reason": reason,
+    }
+    save_state(project_path, state)
+
+
+def unassign_cve(project_path: str, cve_id: str) -> None:
+    """Remove assignment for a CVE."""
+    state = load_state(project_path)
+    state["assignments"].pop(cve_id, None)
+    save_state(project_path, state)
+
+
+def get_assignments(project_path: str) -> dict:
+    """Return all CVE assignments from state."""
+    state = load_state(project_path)
+    return state.get("assignments", {})
 
 
 def filter_dismissed(findings: list, project_path: str) -> list:
