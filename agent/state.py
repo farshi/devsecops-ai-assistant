@@ -2,13 +2,14 @@
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from agent.models import Finding
 
 
 STATE_DIR = ".patchpilot"
 STATE_FILE = "state.json"
 BASELINE_FILE = "baseline.json"
+AUDIT_FILE = "audit.json"
 
 
 def _state_path(project_path: str) -> str:
@@ -78,6 +79,35 @@ def save_state(project_path: str, state: dict) -> str:
     return path
 
 
+def _audit_path(project_path: str) -> str:
+    return os.path.join(project_path, STATE_DIR, AUDIT_FILE)
+
+
+def _append_audit(project_path: str, entry: dict) -> None:
+    """Append an entry to the audit log (.patchpilot/audit.json)."""
+    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+    audit = load_audit(project_path)
+    audit["entries"].append(entry)
+    os.makedirs(os.path.join(project_path, STATE_DIR), exist_ok=True)
+    with open(_audit_path(project_path), "w") as f:
+        json.dump(audit, f, indent=2)
+
+
+def load_audit(project_path: str) -> dict:
+    """Load audit log from .patchpilot/audit.json."""
+    path = _audit_path(project_path)
+    if not os.path.isfile(path):
+        return {"version": 1, "entries": []}
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        if isinstance(data, dict) and "entries" in data:
+            return data
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {"version": 1, "entries": []}
+
+
 def dismiss_finding(project_path: str, finding: Finding, reason: str = "") -> None:
     """Dismiss a finding so it won't appear in future triage."""
     state = load_state(project_path)
@@ -89,6 +119,12 @@ def dismiss_finding(project_path: str, finding: Finding, reason: str = "") -> No
         "dismissed_at": datetime.now().isoformat()[:10],
     }
     save_state(project_path, state)
+    _append_audit(project_path, {
+        "action": "dismiss",
+        "cve": finding.id,
+        "package": finding.package,
+        "reason": reason,
+    })
 
 
 def dismiss_cve(project_path: str, cve_id: str, reason: str = "") -> None:
@@ -101,6 +137,7 @@ def dismiss_cve(project_path: str, cve_id: str, reason: str = "") -> None:
         "dismissed_at": datetime.now().isoformat()[:10],
     }
     save_state(project_path, state)
+    _append_audit(project_path, {"action": "dismiss", "cve": cve_id, "reason": reason})
 
 
 def accept_risk(project_path: str, finding: Finding, reason: str = "") -> None:
@@ -114,6 +151,12 @@ def accept_risk(project_path: str, finding: Finding, reason: str = "") -> None:
         "accepted_at": datetime.now().isoformat()[:10],
     }
     save_state(project_path, state)
+    _append_audit(project_path, {
+        "action": "accept_risk",
+        "cve": finding.id,
+        "package": finding.package,
+        "reason": reason,
+    })
 
 
 def close_finding(project_path: str, finding: Finding, reason: str = "") -> None:
@@ -127,6 +170,12 @@ def close_finding(project_path: str, finding: Finding, reason: str = "") -> None
         "closed_at": datetime.now().isoformat()[:10],
     }
     save_state(project_path, state)
+    _append_audit(project_path, {
+        "action": "close",
+        "cve": finding.id,
+        "package": finding.package,
+        "reason": reason,
+    })
 
 
 def close_cve(project_path: str, cve_id: str, reason: str = "") -> None:
@@ -137,6 +186,7 @@ def close_cve(project_path: str, cve_id: str, reason: str = "") -> None:
         "closed_at": datetime.now().isoformat()[:10],
     }
     save_state(project_path, state)
+    _append_audit(project_path, {"action": "close", "cve": cve_id, "reason": reason})
 
 
 def assign_cve(project_path: str, cve_id: str, assigned_to: str, reason: str = "") -> None:
@@ -148,6 +198,12 @@ def assign_cve(project_path: str, cve_id: str, assigned_to: str, reason: str = "
         "reason": reason,
     }
     save_state(project_path, state)
+    _append_audit(project_path, {
+        "action": "assign",
+        "cve": cve_id,
+        "assigned_to": assigned_to,
+        "reason": reason,
+    })
 
 
 def unassign_cve(project_path: str, cve_id: str) -> None:
@@ -155,6 +211,7 @@ def unassign_cve(project_path: str, cve_id: str) -> None:
     state = load_state(project_path)
     state["assignments"].pop(cve_id, None)
     save_state(project_path, state)
+    _append_audit(project_path, {"action": "unassign", "cve": cve_id})
 
 
 def get_assignments(project_path: str) -> dict:
