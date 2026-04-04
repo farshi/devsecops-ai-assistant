@@ -392,6 +392,9 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
     click.echo("")
 
     # Print top action items
+    from agent.state import get_assignments
+    _assignments = get_assignments(path)
+
     items = triage_data.get("action_items", [])
     if items:
         click.echo(f"  Top {len(items)} action items:")
@@ -409,6 +412,9 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
             owner = item.get("owner", {})
             if owner.get("name"):
                 click.echo(f"       Owner: {owner['name']} (via {owner.get('source', '?')})")
+            assignment = _assignments.get(item["id"], {})
+            if assignment.get("assigned_to"):
+                click.echo(f"       Assigned to: {assignment['assigned_to']}")
             click.echo("")
     else:
         click.echo("  No actionable findings found.")
@@ -584,6 +590,51 @@ def close(path, cve, reason):
     close_cve(path, cve, reason)
     state_file = os.path.join(path, ".patchpilot", "state.json")
     click.echo(f"  Closed {cve}" + (f" — {reason}" if reason else ""))
+    click.echo(f"  State saved → {state_file}")
+
+
+# ---------------------------------------------------------------------------
+# assign / unassign
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--path", default=".", show_default=True, help="Project path.")
+@click.option("--cve", required=True, help="CVE ID to assign.")
+@click.option("--to", "assigned_to", required=True, help="Person or team (e.g. alice@company.com, @security-team).")
+@click.option("--reason", default="", help="Why this person/team (e.g. 'owns auth module').")
+def assign(path, cve, assigned_to, reason):
+    """Assign a finding to a person or team for remediation tracking.
+
+    \b
+    Example:
+      patchpilot assign --cve CVE-2023-xxxxx --to alice@company.com
+      patchpilot assign --cve CVE-2023-xxxxx --to @security-team --reason "owns auth module"
+    """
+    import os
+    from agent.state import assign_cve
+
+    assign_cve(path, cve, assigned_to, reason)
+    state_file = os.path.join(path, ".patchpilot", "state.json")
+    click.echo(f"  Assigned {cve} → {assigned_to}" + (f" ({reason})" if reason else ""))
+    click.echo(f"  State saved → {state_file}")
+
+
+@cli.command()
+@click.option("--path", default=".", show_default=True, help="Project path.")
+@click.option("--cve", required=True, help="CVE ID to unassign.")
+def unassign(path, cve):
+    """Remove assignment for a finding.
+
+    \b
+    Example:
+      patchpilot unassign --cve CVE-2023-xxxxx
+    """
+    import os
+    from agent.state import unassign_cve
+
+    unassign_cve(path, cve)
+    state_file = os.path.join(path, ".patchpilot", "state.json")
+    click.echo(f"  Unassigned {cve}")
     click.echo(f"  State saved → {state_file}")
 
 

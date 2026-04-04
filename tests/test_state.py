@@ -16,6 +16,9 @@ from agent.state import (
     accept_risk,
     close_finding,
     close_cve,
+    assign_cve,
+    unassign_cve,
+    get_assignments,
     filter_dismissed,
     save_baseline,
     load_baseline,
@@ -379,3 +382,60 @@ def test_load_state_backward_compat_no_closed_key(tmp_path):
     state = load_state(str(tmp_path))
     assert "closed" in state
     assert state["closed"] == {}
+    assert "assignments" in state
+    assert state["assignments"] == {}
+
+
+# ---------------------------------------------------------------------------
+# assign_cve / unassign_cve / get_assignments
+# ---------------------------------------------------------------------------
+
+
+def test_assign_cve(tmp_path):
+    """assign_cve stores CVE assignment in state."""
+    assign_cve(str(tmp_path), "CVE-2023-ASSIGN", "alice@co.com", reason="owns auth")
+    state = load_state(str(tmp_path))
+    assert "CVE-2023-ASSIGN" in state["assignments"]
+    entry = state["assignments"]["CVE-2023-ASSIGN"]
+    assert entry["assigned_to"] == "alice@co.com"
+    assert entry["reason"] == "owns auth"
+    assert "assigned_at" in entry
+
+
+def test_assign_cve_overwrite(tmp_path):
+    """Reassigning a CVE updates the assignment."""
+    assign_cve(str(tmp_path), "CVE-2023-REASSIGN", "alice@co.com")
+    assign_cve(str(tmp_path), "CVE-2023-REASSIGN", "bob@co.com", reason="transferred")
+    state = load_state(str(tmp_path))
+    assert state["assignments"]["CVE-2023-REASSIGN"]["assigned_to"] == "bob@co.com"
+    assert state["assignments"]["CVE-2023-REASSIGN"]["reason"] == "transferred"
+
+
+def test_unassign_cve(tmp_path):
+    """unassign_cve removes the assignment."""
+    assign_cve(str(tmp_path), "CVE-2023-UNASSIGN", "alice@co.com")
+    unassign_cve(str(tmp_path), "CVE-2023-UNASSIGN")
+    state = load_state(str(tmp_path))
+    assert "CVE-2023-UNASSIGN" not in state["assignments"]
+
+
+def test_unassign_cve_nonexistent(tmp_path):
+    """unassign_cve on missing CVE is a no-op."""
+    unassign_cve(str(tmp_path), "CVE-2023-GHOST")
+    state = load_state(str(tmp_path))
+    assert "CVE-2023-GHOST" not in state["assignments"]
+
+
+def test_get_assignments(tmp_path):
+    """get_assignments returns all assignments."""
+    assign_cve(str(tmp_path), "CVE-2023-A", "alice@co.com")
+    assign_cve(str(tmp_path), "CVE-2023-B", "bob@co.com")
+    assignments = get_assignments(str(tmp_path))
+    assert len(assignments) == 2
+    assert assignments["CVE-2023-A"]["assigned_to"] == "alice@co.com"
+    assert assignments["CVE-2023-B"]["assigned_to"] == "bob@co.com"
+
+
+def test_get_assignments_empty(tmp_path):
+    """get_assignments returns empty dict when none exist."""
+    assert get_assignments(str(tmp_path)) == {}
