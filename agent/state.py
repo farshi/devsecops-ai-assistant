@@ -49,7 +49,7 @@ def load_state(project_path: str) -> dict:
     """
     path = _state_path(project_path)
     if not os.path.isfile(path):
-        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}}
+        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}}
 
     try:
         with open(path) as f:
@@ -57,9 +57,11 @@ def load_state(project_path: str) -> dict:
         # Ensure dismissed_cves key exists in older state files
         if "dismissed_cves" not in state:
             state["dismissed_cves"] = {}
+        if "closed" not in state:
+            state["closed"] = {}
         return state
     except (json.JSONDecodeError, OSError):
-        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}}
+        return {"version": 1, "dismissed": {}, "dismissed_cves": {}, "accepted_risks": {}, "closed": {}}
 
 
 def save_state(project_path: str, state: dict) -> str:
@@ -112,6 +114,29 @@ def accept_risk(project_path: str, finding: Finding, reason: str = "") -> None:
     save_state(project_path, state)
 
 
+def close_finding(project_path: str, finding: Finding, reason: str = "") -> None:
+    """Mark a finding as resolved/remediated."""
+    state = load_state(project_path)
+    fp = finding.fingerprint()
+    state["closed"][fp] = {
+        "cve": finding.id,
+        "package": finding.package,
+        "reason": reason,
+        "closed_at": datetime.now().isoformat()[:10],
+    }
+    save_state(project_path, state)
+
+
+def close_cve(project_path: str, cve_id: str, reason: str = "") -> None:
+    """Mark a CVE as resolved by ID (CLI convenience — doesn't need Finding object)."""
+    state = load_state(project_path)
+    state["closed"][cve_id] = {
+        "reason": reason,
+        "closed_at": datetime.now().isoformat()[:10],
+    }
+    save_state(project_path, state)
+
+
 def filter_dismissed(findings: list, project_path: str) -> list:
     """Remove dismissed and accepted-risk findings.
 
@@ -121,15 +146,26 @@ def filter_dismissed(findings: list, project_path: str) -> list:
     state = load_state(project_path)
     dismissed_fps = set(state.get("dismissed", {}).keys())
     accepted_fps = set(state.get("accepted_risks", {}).keys())
+    closed_fps = set(state.get("closed", {}).keys())
     dismissed_cves = set(state.get("dismissed_cves", {}).keys())
-    suppressed_fps = dismissed_fps | accepted_fps
+    # closed section: keys are fingerprints (from close_finding) or CVE IDs
+    # (from close_cve). Collect CVE IDs from both key and value.
+    closed_cves = set()
+    for key, val in state.get("closed", {}).items():
+        if "cve" in val:
+            closed_cves.add(val["cve"])
+        elif key.startswith("CVE-") or key.startswith("GHSA-"):
+            # close_cve uses CVE/advisory ID as key directly
+            closed_cves.add(key)
+    suppressed_fps = dismissed_fps | accepted_fps | closed_fps
+    suppressed_cves = dismissed_cves | closed_cves
 
-    if not suppressed_fps and not dismissed_cves:
+    if not suppressed_fps and not suppressed_cves:
         return findings
 
     return [
         f for f in findings
-        if f.fingerprint() not in suppressed_fps and f.id not in dismissed_cves
+        if f.fingerprint() not in suppressed_fps and f.id not in suppressed_cves
     ]
 
 

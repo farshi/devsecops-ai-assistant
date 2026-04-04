@@ -36,7 +36,8 @@ def generate_digest(
         return {"error": "No scan history found. Run `patchpilot triage` first."}
 
     # Compute trends (needs 2+ snapshots)
-    trends = compute_trends(history) if len(snapshots) >= 2 else {}
+    closed = state.get("closed", {})
+    trends = compute_trends(history, closed=closed) if len(snapshots) >= 2 else {}
 
     # Build digest data
     data = _build_digest_data(
