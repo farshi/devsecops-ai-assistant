@@ -19,6 +19,7 @@ from agent.state import (
     assign_cve,
     unassign_cve,
     get_assignments,
+    load_audit,
     filter_dismissed,
     save_baseline,
     load_baseline,
@@ -439,3 +440,73 @@ def test_get_assignments(tmp_path):
 def test_get_assignments_empty(tmp_path):
     """get_assignments returns empty dict when none exist."""
     assert get_assignments(str(tmp_path)) == {}
+
+
+# ---------------------------------------------------------------------------
+# Audit trail
+# ---------------------------------------------------------------------------
+
+
+def test_dismiss_creates_audit_entry(tmp_path):
+    """dismiss_cve appends to audit log."""
+    dismiss_cve(str(tmp_path), "CVE-2023-AUDIT", reason="false positive")
+    audit = load_audit(str(tmp_path))
+    assert len(audit["entries"]) == 1
+    entry = audit["entries"][0]
+    assert entry["action"] == "dismiss"
+    assert entry["cve"] == "CVE-2023-AUDIT"
+    assert entry["reason"] == "false positive"
+    assert "timestamp" in entry
+
+
+def test_close_creates_audit_entry(tmp_path):
+    """close_cve appends to audit log."""
+    close_cve(str(tmp_path), "CVE-2023-CLOSED", reason="upgraded")
+    audit = load_audit(str(tmp_path))
+    assert len(audit["entries"]) == 1
+    assert audit["entries"][0]["action"] == "close"
+
+
+def test_accept_risk_creates_audit_entry(tmp_path):
+    """accept_risk appends to audit log."""
+    f = _make_finding("CVE-2023-RISK", "flask", "2.0.0")
+    accept_risk(str(tmp_path), f, reason="mitigated by WAF")
+    audit = load_audit(str(tmp_path))
+    assert len(audit["entries"]) == 1
+    assert audit["entries"][0]["action"] == "accept_risk"
+    assert audit["entries"][0]["package"] == "flask"
+
+
+def test_assign_creates_audit_entry(tmp_path):
+    """assign_cve appends to audit log."""
+    assign_cve(str(tmp_path), "CVE-2023-ASSIGN", "alice@co.com", reason="owns it")
+    audit = load_audit(str(tmp_path))
+    assert len(audit["entries"]) == 1
+    assert audit["entries"][0]["action"] == "assign"
+    assert audit["entries"][0]["assigned_to"] == "alice@co.com"
+
+
+def test_unassign_creates_audit_entry(tmp_path):
+    """unassign_cve appends to audit log."""
+    assign_cve(str(tmp_path), "CVE-2023-UA", "alice@co.com")
+    unassign_cve(str(tmp_path), "CVE-2023-UA")
+    audit = load_audit(str(tmp_path))
+    assert len(audit["entries"]) == 2
+    assert audit["entries"][1]["action"] == "unassign"
+
+
+def test_audit_is_append_only(tmp_path):
+    """Multiple operations accumulate in audit log."""
+    dismiss_cve(str(tmp_path), "CVE-1", reason="noise")
+    close_cve(str(tmp_path), "CVE-2", reason="fixed")
+    assign_cve(str(tmp_path), "CVE-3", "bob@co.com")
+    audit = load_audit(str(tmp_path))
+    assert len(audit["entries"]) == 3
+    actions = [e["action"] for e in audit["entries"]]
+    assert actions == ["dismiss", "close", "assign"]
+
+
+def test_load_audit_empty(tmp_path):
+    """load_audit returns empty default when no file exists."""
+    audit = load_audit(str(tmp_path))
+    assert audit == {"version": 1, "entries": []}
