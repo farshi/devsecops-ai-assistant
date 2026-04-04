@@ -98,9 +98,10 @@ class TestCRAFormatterBasic:
 
         assert "## 1. Executive Summary" in doc
         assert "## 2. Actively Exploited Vulnerabilities" in doc
-        assert "## 3. Vulnerability Details" in doc
-        assert "## 4. Product Context" in doc
-        assert "## 5. Compliance Statement" in doc
+        assert "## 3. CRA Notification Timeline" in doc
+        assert "## 4. Vulnerability Details" in doc
+        assert "## 5. Product Context" in doc
+        assert "## 6. Compliance Statement" in doc
 
     def test_cra_document_id_contains_date_and_target(self):
         """Document ID is formatted with date and target slug."""
@@ -226,7 +227,7 @@ class TestCRAEdgeCases:
 
         assert "Vulnerability Disclosure Report" in doc
         assert "0 vulnerabilities" in doc
-        assert "## 5. Compliance Statement" in doc
+        assert "## 6. Compliance Statement" in doc
 
     def test_cra_no_fixed_version(self):
         """Finding with no fixed_version shows 'N/A' for fixed version."""

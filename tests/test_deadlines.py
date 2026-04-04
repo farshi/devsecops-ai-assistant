@@ -12,7 +12,11 @@ from agent.deadlines import (
     compute_deadlines_for_findings,
     summarize_deadlines,
     format_deadlines_table,
+    compute_notification_milestones,
+    escalation_level,
+    format_escalation_summary,
     DEADLINE_DAYS,
+    NOTIFICATION_MILESTONES,
 )
 from agent.models import Finding
 
@@ -186,6 +190,249 @@ class TestFormatDeadlinesTable:
         result = format_deadlines_table(dl, as_of="2026-04-04")
         assert "OVERDUE" in result
         assert "CVE-001" in result
+
+
+# --- compute_notification_milestones ---
+
+class TestComputeNotificationMilestones:
+    def test_early_warning_24h(self):
+        result = compute_notification_milestones("2026-04-04")
+        assert result["early_warning_24h"] == "2026-04-05"
+
+    def test_notification_72h(self):
+        result = compute_notification_milestones("2026-04-04")
+        assert result["notification_72h"] == "2026-04-07"
+
+    def test_final_report_14d(self):
+        result = compute_notification_milestones("2026-04-04")
+        assert result["final_report_14d"] == "2026-04-18"
+
+    def test_all_three_keys_present(self):
+        result = compute_notification_milestones("2026-04-04")
+        assert set(result.keys()) == {"early_warning_24h", "notification_72h", "final_report_14d"}
+
+    def test_month_boundary(self):
+        result = compute_notification_milestones("2026-04-30")
+        assert result["early_warning_24h"] == "2026-05-01"
+        assert result["notification_72h"] == "2026-05-03"
+        assert result["final_report_14d"] == "2026-05-14"
+
+
+# --- escalation_level ---
+
+def _make_entry(notifications: dict, cve="CVE-2024-1234", package="flask") -> dict:
+    """Build a minimal deadline entry with the given notifications dict."""
+    return {
+        "cve": cve,
+        "package": package,
+        "severity": "high",
+        "discovered_at": "2026-04-01",
+        "deadline": "2026-04-08",
+        "notifications": notifications,
+    }
+
+
+class TestEscalationLevel:
+    def test_no_milestones_overdue_returns_none(self):
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-10", "sent": None},
+            "notification_72h": {"due": "2026-04-12", "sent": None},
+            "final_report_14d": {"due": "2026-04-20", "sent": None},
+        }
+        entry = _make_entry(notifications)
+        assert escalation_level(entry, as_of="2026-04-04") == "none"
+
+    def test_final_report_overdue_returns_warning(self):
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": "2026-04-02"},
+            "notification_72h": {"due": "2026-04-04", "sent": "2026-04-04"},
+            "final_report_14d": {"due": "2026-04-10", "sent": None},
+        }
+        entry = _make_entry(notifications)
+        assert escalation_level(entry, as_of="2026-04-15") == "warning"
+
+    def test_notification_72h_overdue_returns_escalated(self):
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": "2026-04-02"},
+            "notification_72h": {"due": "2026-04-04", "sent": None},
+            "final_report_14d": {"due": "2026-04-15", "sent": None},
+        }
+        entry = _make_entry(notifications)
+        assert escalation_level(entry, as_of="2026-04-10") == "escalated"
+
+    def test_early_warning_overdue_returns_critical(self):
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": None},
+            "notification_72h": {"due": "2026-04-04", "sent": None},
+            "final_report_14d": {"due": "2026-04-15", "sent": None},
+        }
+        entry = _make_entry(notifications)
+        assert escalation_level(entry, as_of="2026-04-10") == "critical"
+
+    def test_sent_milestone_is_skipped_even_if_overdue(self):
+        # 24h overdue but sent — should fall through to next level
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": "2026-04-02"},
+            "notification_72h": {"due": "2026-04-04", "sent": None},
+            "final_report_14d": {"due": "2026-04-15", "sent": None},
+        }
+        entry = _make_entry(notifications)
+        assert escalation_level(entry, as_of="2026-04-10") == "escalated"
+
+    def test_all_sent_returns_none(self):
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": "2026-04-02"},
+            "notification_72h": {"due": "2026-04-04", "sent": "2026-04-04"},
+            "final_report_14d": {"due": "2026-04-15", "sent": "2026-04-15"},
+        }
+        entry = _make_entry(notifications)
+        assert escalation_level(entry, as_of="2026-04-20") == "none"
+
+    def test_no_notifications_key_returns_none(self):
+        entry = {"cve": "CVE-X", "package": "pkg", "deadline": "2026-04-08"}
+        assert escalation_level(entry, as_of="2026-04-20") == "none"
+
+
+# --- format_escalation_summary ---
+
+class TestFormatEscalationSummary:
+    def test_empty_returns_on_track_message(self):
+        result = format_escalation_summary({})
+        assert "on track" in result.lower()
+
+    def test_all_on_track_returns_no_alerts(self):
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-10", "sent": None},
+            "notification_72h": {"due": "2026-04-12", "sent": None},
+            "final_report_14d": {"due": "2026-04-20", "sent": None},
+        }
+        deadlines = {"fp1": _make_entry(notifications, cve="CVE-001")}
+        result = format_escalation_summary(deadlines, as_of="2026-04-04")
+        assert "on track" in result.lower()
+
+    def test_critical_finding_appears_under_critical_heading(self):
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": None},
+            "notification_72h": {"due": "2026-04-04", "sent": None},
+            "final_report_14d": {"due": "2026-04-15", "sent": None},
+        }
+        deadlines = {"fp1": _make_entry(notifications, cve="CVE-9999")}
+        result = format_escalation_summary(deadlines, as_of="2026-04-10")
+        assert "CRITICAL" in result
+        assert "CVE-9999" in result
+
+    def test_mixed_levels_all_appear(self):
+        # critical entry
+        n_critical = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": None},
+            "notification_72h": {"due": "2026-04-04", "sent": None},
+            "final_report_14d": {"due": "2026-04-15", "sent": None},
+        }
+        # warning entry (24h and 72h sent, 14d overdue)
+        n_warning = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": "2026-04-02"},
+            "notification_72h": {"due": "2026-04-04", "sent": "2026-04-04"},
+            "final_report_14d": {"due": "2026-04-10", "sent": None},
+        }
+        deadlines = {
+            "fp1": _make_entry(n_critical, cve="CVE-CRIT"),
+            "fp2": _make_entry(n_warning, cve="CVE-WARN"),
+        }
+        result = format_escalation_summary(deadlines, as_of="2026-04-20")
+        assert "CVE-CRIT" in result
+        assert "CVE-WARN" in result
+        assert "CRITICAL" in result
+        assert "WARNING" in result
+
+    def test_overdue_hours_shown_for_recent_overdue(self):
+        # 2 days overdue → 48h; show days
+        notifications = {
+            "early_warning_24h": {"due": "2026-04-08", "sent": None},
+            "notification_72h": {"due": "2026-04-10", "sent": None},
+            "final_report_14d": {"due": "2026-04-20", "sent": None},
+        }
+        deadlines = {"fp1": _make_entry(notifications, cve="CVE-T")}
+        result = format_escalation_summary(deadlines, as_of="2026-04-10")
+        assert "CVE-T" in result
+
+
+# --- TestNotificationMilestonesInDeadlineEntry ---
+
+class TestNotificationMilestonesInDeadlineEntry:
+    def test_notifications_key_present(self):
+        f = _make_finding(severity="high")
+        entry = build_deadline_entry(f, "2026-04-04")
+        assert "notifications" in entry
+
+    def test_all_three_milestones_present(self):
+        f = _make_finding(severity="high")
+        entry = build_deadline_entry(f, "2026-04-04")
+        notifs = entry["notifications"]
+        assert "early_warning_24h" in notifs
+        assert "notification_72h" in notifs
+        assert "final_report_14d" in notifs
+
+    def test_milestone_due_dates_correct(self):
+        f = _make_finding(severity="high")
+        entry = build_deadline_entry(f, "2026-04-04")
+        notifs = entry["notifications"]
+        assert notifs["early_warning_24h"]["due"] == "2026-04-05"
+        assert notifs["notification_72h"]["due"] == "2026-04-07"
+        assert notifs["final_report_14d"]["due"] == "2026-04-18"
+
+    def test_all_sent_fields_are_none(self):
+        f = _make_finding(severity="critical")
+        entry = build_deadline_entry(f, "2026-04-04")
+        for ms_name, ms_data in entry["notifications"].items():
+            assert ms_data["sent"] is None, f"{ms_name} sent should be None"
+
+
+# --- TestSummarizeDeadlinesWithEscalation ---
+
+class TestSummarizeDeadlinesWithEscalation:
+    def test_escalation_counts_present_in_summary(self):
+        dl = {
+            "fp1": {"cve": "CVE-001", "severity": "high", "deadline": "2026-05-01", "package": "a",
+                    "notifications": {
+                        "early_warning_24h": {"due": "2026-04-05", "sent": None},
+                        "notification_72h": {"due": "2026-04-07", "sent": None},
+                        "final_report_14d": {"due": "2026-04-18", "sent": None},
+                    }},
+        }
+        s = summarize_deadlines(dl, as_of="2026-04-20")
+        assert "escalation_counts" in s
+        assert "escalation_findings" in s
+
+    def test_escalation_counts_correct(self):
+        # One critical (24h overdue, unsent), one clean
+        n_critical = {
+            "early_warning_24h": {"due": "2026-04-02", "sent": None},
+            "notification_72h": {"due": "2026-04-04", "sent": None},
+            "final_report_14d": {"due": "2026-04-15", "sent": None},
+        }
+        n_clean = {
+            "early_warning_24h": {"due": "2026-04-10", "sent": None},
+            "notification_72h": {"due": "2026-04-12", "sent": None},
+            "final_report_14d": {"due": "2026-04-20", "sent": None},
+        }
+        dl = {
+            "fp1": {"cve": "CVE-A", "severity": "high", "deadline": "2026-05-01", "package": "a",
+                    "notifications": n_critical},
+            "fp2": {"cve": "CVE-B", "severity": "medium", "deadline": "2026-05-10", "package": "b",
+                    "notifications": n_clean},
+        }
+        s = summarize_deadlines(dl, as_of="2026-04-10")
+        assert s["escalation_counts"]["critical"] == 1
+        assert s["escalation_counts"]["escalated"] == 0
+        assert s["escalation_counts"]["warning"] == 0
+        assert len(s["escalation_findings"]) == 1
+        assert s["escalation_findings"][0]["cve"] == "CVE-A"
+        assert s["escalation_findings"][0]["level"] == "critical"
+
+    def test_empty_deadlines_has_zero_escalations(self):
+        s = summarize_deadlines({})
+        assert s["escalation_counts"] == {"critical": 0, "escalated": 0, "warning": 0}
+        assert s["escalation_findings"] == []
 
 
 # --- State integration ---

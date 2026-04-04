@@ -63,3 +63,12 @@ node_modules/
 .terraform.lock.hcl
 
 .ai-team/
+
+# PatchPilot runtime state (per-project, not source)
+.patchpilot/
+vulnerable_app/.patchpilot/
+
+# TAT generated files (session-local, not source)
+.tat/gpt.md
+.tat/session.md
+.tat/version
