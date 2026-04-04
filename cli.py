@@ -639,6 +639,65 @@ def unassign(path, cve):
 
 
 # ---------------------------------------------------------------------------
+# audit
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("--path", default=".", show_default=True, help="Project path.")
+@click.option("--cve", default=None, help="Filter by CVE ID.")
+@click.option("--json", "output_json", is_flag=True, default=False, help="Output as JSON.")
+@click.option("--limit", "max_entries", default=20, show_default=True, help="Max entries to show.")
+def audit(path, cve, output_json, max_entries):
+    """View the triage decision audit trail.
+
+    \b
+    Shows a timestamped log of all triage decisions (dismiss, close,
+    assign, accept-risk) for compliance auditing.
+
+    \b
+    Example:
+      patchpilot audit
+      patchpilot audit --cve CVE-2023-xxxxx
+      patchpilot audit --json --limit 50
+    """
+    import json as json_mod
+    from agent.state import load_audit
+
+    data = load_audit(path)
+    entries = data.get("entries", [])
+
+    if cve:
+        entries = [e for e in entries if e.get("cve") == cve]
+
+    # Show most recent first, limited
+    entries = list(reversed(entries))[:max_entries]
+
+    if not entries:
+        click.echo("  No audit entries found.")
+        return
+
+    if output_json:
+        click.echo(json_mod.dumps(entries, indent=2))
+        return
+
+    click.echo(f"  Audit trail ({len(entries)} entries):")
+    click.echo("")
+    for entry in entries:
+        ts = entry.get("timestamp", "?")[:19]
+        action = entry.get("action", "?")
+        cve_id = entry.get("cve", "?")
+        reason = entry.get("reason", "")
+        assigned_to = entry.get("assigned_to", "")
+
+        line = f"    {ts}  {action:<12} {cve_id}"
+        if assigned_to:
+            line += f" → {assigned_to}"
+        if reason:
+            line += f"  ({reason})"
+        click.echo(line)
+
+
+# ---------------------------------------------------------------------------
 # trends
 # ---------------------------------------------------------------------------
 
