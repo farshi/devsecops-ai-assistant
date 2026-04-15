@@ -2,10 +2,14 @@
 PatchPilot — smart vulnerability triage for developers.
 
 Usage:
-    patchpilot scan     --path ./app --target-name myapp
-    patchpilot triage   --path ./app --target-name myapp
-    patchpilot report   --target-name myapp
+    patchpilot scan    ./app
+    patchpilot triage  ./app
+    patchpilot triage  ./app --framework pci-dss
+    patchpilot report  ./app
 """
+
+import os
+from typing import Optional
 
 import click
 from agent.utils import timestamp, slugify, check_trivy_installed
@@ -17,6 +21,27 @@ from agent.utils import timestamp, slugify, check_trivy_installed
 
 def output_path(folder: str, target_slug: str, suffix: str) -> str:
     return f"{folder}/{target_slug}_{timestamp()}{suffix}"
+
+
+def _derive_target_name(path: Optional[str], explicit: Optional[str]) -> str:
+    """Return ``explicit`` if the user gave one, else the path basename.
+
+    For reports where only a target name is meaningful, callers may pass
+    ``path=None`` — in that case an explicit name is required.
+    """
+    if explicit:
+        return explicit
+    if not path:
+        raise click.ClickException(
+            "--target-name is required when no path is provided."
+        )
+    name = os.path.basename(os.path.normpath(os.path.abspath(path)))
+    if not name:
+        raise click.ClickException(
+            f"Could not derive a target-name from path {path!r}; "
+            "pass --target-name explicitly."
+        )
+    return name
 
 
 # ---------------------------------------------------------------------------
@@ -57,10 +82,11 @@ def cli():
 
 @cli.command()
 @click.option("--path",        required=True, help="Path to the project directory.")
-@click.option("--target-name", required=True, help="Name used for output file scoping.")
+@click.option("--target-name", default=None, help="Output file naming. Defaults to the path basename.")
 @click.option("--dry-run",     is_flag=True,  help="Show what would run without executing.")
 def analyze(path, target_name, dry_run):
     """Understand a project's structure and security posture."""
+    target_name = _derive_target_name(path, target_name)
     target_slug = slugify(target_name)
     out = output_path("analysis", target_slug, ".md")
 
@@ -88,7 +114,7 @@ def analyze(path, target_name, dry_run):
 
 @cli.command()
 @click.option("--path",        required=True, help="Path to the project directory.")
-@click.option("--target-name", required=True, help="Name used for output file scoping.")
+@click.option("--target-name", default=None, help="Output file naming. Defaults to the path basename.")
 @click.option("--profile",
               type=click.Choice(["quick", "standard", "full"]),
               default="standard", show_default=True,
@@ -96,6 +122,7 @@ def analyze(path, target_name, dry_run):
 @click.option("--dry-run",     is_flag=True,  help="Show what would run without executing.")
 def scan(path, target_name, profile, dry_run):
     """Run security scanners against the project."""
+    target_name = _derive_target_name(path, target_name)
     target_slug = slugify(target_name)
     scanners    = PROFILE_SCANNERS[profile]
     date        = timestamp()
@@ -137,7 +164,7 @@ def scan(path, target_name, profile, dry_run):
 # ---------------------------------------------------------------------------
 
 @cli.command()
-@click.option("--target-name", required=True, help="Must match the target-name used in scan.")
+@click.option("--target-name", default=None, help="Must match the target-name used in scan. Defaults to the path basename.")
 @click.option("--path", default=None, help="Project path. If provided, uses triage-based report.")
 @click.option("--top", default=5, show_default=True, help="Top findings to include (triage mode).")
 @click.option("--dry-run",     is_flag=True,  help="Show what would run without executing.")
@@ -193,7 +220,7 @@ def report(target_name, path, top, dry_run):
 
 @cli.command()
 @click.option("--path", required=True, help="Path to the project directory.")
-@click.option("--target-name", required=True, help="Name used for output file scoping.")
+@click.option("--target-name", default=None, help="Output file naming. Defaults to the path basename.")
 @click.option("--top", default=5, show_default=True, help="Number of top findings to surface.")
 @click.option("--profile",
               type=click.Choice(["quick", "standard", "full"]),
@@ -243,10 +270,12 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
 
     \b
     Examples:
-      python cli.py triage --path ./app --target-name myapp
-      python cli.py triage --path ./app --target-name myapp --top 3
-      python cli.py triage --path ./app --target-name myapp --no-scan
+      patchpilot triage --path ./app
+      patchpilot triage --path ./app --framework pci-dss
+      patchpilot triage --path ./app --top 3 --fail-on high
+      patchpilot triage --path ./app --no-scan    # reuse last summary
     """
+    target_name = _derive_target_name(path, target_name)
     target_slug = slugify(target_name)
 
     click.echo("[triage]")
@@ -879,7 +908,7 @@ def portfolio(repo_paths, output_json):
 
 @cli.command()
 @click.option("--path", default=".", show_default=True, help="Project path.")
-@click.option("--target-name", required=True, help="Target name for report lookup.")
+@click.option("--target-name", default=None, help="Target name for report lookup. Defaults to the path basename if --path given.")
 @click.option("--json", "output_json", is_flag=True, default=False, help="Output as JSON.")
 @click.option("--days", default=7, show_default=True, help="Look-back window in days.")
 @click.option("--pr-comment", is_flag=True, default=False,
@@ -916,6 +945,7 @@ def digest(path, target_name, output_json, days, pr_comment):
     click.echo(output)
 
     # Save report
+    target_name = _derive_target_name(path, target_name)
     target_slug = slugify(target_name)
     report_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
     os.makedirs(report_dir, exist_ok=True)
@@ -1003,10 +1033,11 @@ def trends(path, output_json):
 @cli.command()
 @click.option("--path",        required=True, help="Path to the project directory.")
 @click.option("--task",        required=True, help="Feature or change to plan (free text).")
-@click.option("--target-name", required=True, help="Name used for output file scoping.")
+@click.option("--target-name", default=None, help="Output file naming. Defaults to the path basename.")
 @click.option("--dry-run",     is_flag=True,  help="Show what would run without executing.")
 def plan(path, task, target_name, dry_run):
     """Generate a secure implementation plan for a task."""
+    target_name = _derive_target_name(path, target_name)
     target_slug = slugify(target_name)
     task_slug   = slugify(task)
     out         = f"plans/{target_slug}_{task_slug}_{timestamp()}.md"
@@ -1036,7 +1067,7 @@ def plan(path, task, target_name, dry_run):
 
 @cli.command()
 @click.option("--path",        required=True,                  help="Path to the project directory.")
-@click.option("--target-name", required=True,                  help="Must match the target-name used in scan.")
+@click.option("--target-name", default=None,                   help="Must match the target-name used in scan. Defaults to the path basename.")
 @click.option("--diff",        "mode", flag_value="diff",      help="Review uncommitted changes (git diff HEAD).")
 @click.option("--branch",      default=None,                   help="Review diff of this branch against main.")
 @click.option("--dry-run",     is_flag=True,                   help="Show what would run without executing.")
@@ -1055,6 +1086,7 @@ def review(path, target_name, mode, branch, dry_run):
     if branch:
         mode = "branch"
 
+    target_name = _derive_target_name(path, target_name)
     target_slug = slugify(target_name)
     mode_label  = {
         "diff":   "uncommitted changes (git diff HEAD)",

@@ -42,14 +42,17 @@ Requires Python 3.9+ and [Trivy](https://aquasecurity.github.io/trivy/).
 
 ```bash
 # Run the full triage pipeline against a repo
-patchpilot triage --path ./my-project --target-name myapp
+patchpilot triage --path ./my-project
 
 # Show only findings that break a PCI DSS 4.0 control
-patchpilot triage --path ./my-project --target-name myapp --framework pci-dss
+patchpilot triage --path ./my-project --framework pci-dss
 
 # Fail CI if any high-tier finding is present
-patchpilot triage --path ./my-project --target-name myapp --fail-on high
+patchpilot triage --path ./my-project --fail-on high
 ```
+
+The project path is the only required flag. Output files are scoped by
+the path's basename unless you pass ``--target-name`` explicitly.
 
 The triage pipeline runs Trivy, enriches findings with EPSS exploitability
 scores and CISA KEV presence, then attaches the NIST 800-53 / CIS v8 / PCI
@@ -62,7 +65,7 @@ controls affected, and the data also travels with the finding through the
 JSON output for downstream tooling:
 
 ```bash
-patchpilot triage --path ./my-project --target-name myapp \
+patchpilot triage --path ./my-project \
   | jq '.triage.action_items[] | {id, score: .priority_score, controls: .compliance.controls}'
 ```
 
