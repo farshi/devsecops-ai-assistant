@@ -203,8 +203,12 @@ class ComplianceEnrichmentPlugin(EnrichmentPlugin):
 
     @staticmethod
     def _default_mappings_dir() -> Path:
-        # agent/plugins/enrichment/compliance.py → repo root is 3 levels up
-        return Path(__file__).resolve().parents[3] / "mappings" / "patterns"
+        # Mappings ship inside the agent package so they travel with the
+        # installed wheel. Path resolution from this module:
+        #   agent/plugins/enrichment/compliance.py
+        #   → parents[2] == agent/
+        #   → / "mappings" / "patterns"
+        return Path(__file__).resolve().parents[2] / "mappings" / "patterns"
 
     @staticmethod
     def _load_patterns(directory: Path) -> list[dict]:

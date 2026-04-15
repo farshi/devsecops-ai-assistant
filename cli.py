@@ -1165,7 +1165,7 @@ def mappings_validate(path):
     import json as _json
 
     patterns_dir = _P(path) if path else (
-        _P(__file__).resolve().parent / "mappings" / "patterns"
+        _P(__file__).resolve().parent / "agent" / "mappings" / "patterns"
     )
     schema_path = patterns_dir.parent / "schema.json"
 
