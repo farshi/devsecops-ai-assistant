@@ -4,26 +4,33 @@ from agent.models import Finding
 from agent.plugins.base import PrioritizationStrategy
 
 
-# Weight profiles per finding type
+# Weight profiles per finding type. Each profile sums to 1.0.
+# Compliance hit is a fresh signal from the compliance enrichment plugin:
+# findings that break named NIST/CIS/PCI/ISO controls carry real audit
+# risk for regulated customers and should rank above findings that only
+# register on CVSS alone.
 LANGUAGE_DEP_WEIGHTS = {
-    "severity": 0.20,
-    "reachability": 0.25,
-    "epss": 0.15,
-    "fix": 0.15,
-    "direct_dep": 0.10,
-    "kev": 0.15,
+    "severity": 0.18,
+    "reachability": 0.22,
+    "epss": 0.13,
+    "fix": 0.12,
+    "direct_dep": 0.08,
+    "kev": 0.12,
+    "compliance": 0.15,
 }
 
 OS_PACKAGE_WEIGHTS = {
-    "severity": 0.35,
-    "epss": 0.20,
-    "fix": 0.20,
-    "kev": 0.25,
+    "severity": 0.30,
+    "epss": 0.17,
+    "fix": 0.17,
+    "kev": 0.21,
+    "compliance": 0.15,
 }
 
 DEFAULT_WEIGHTS = {
-    "severity": 0.60,
-    "fix": 0.40,
+    "severity": 0.50,
+    "fix": 0.35,
+    "compliance": 0.15,
 }
 
 
@@ -105,6 +112,27 @@ def _kev_score(finding: Finding) -> float:
     return 1.0 if finding.in_kev else 0.0
 
 
+def _compliance_score(finding: Finding) -> float:
+    """Score compliance-control impact.
+
+    A finding that breaks zero controls scores 0. A finding with hits in
+    one framework scores 0.5 — enough to differentiate from uncovered
+    findings without dominating the total. Hits across multiple frameworks
+    (breadth of audit-surface impact) climb toward 1.0. Deep control counts
+    within a single framework are ignored deliberately: ten NIST controls
+    on one finding does not make it meaningfully more urgent than three,
+    once the auditor is already looking at it.
+    """
+    frameworks_hit = sum(1 for ctrls in finding.compliance_controls.values() if ctrls)
+    if frameworks_hit == 0:
+        return 0.0
+    if frameworks_hit == 1:
+        return 0.5
+    if frameworks_hit == 2:
+        return 0.75
+    return 1.0
+
+
 class DefaultScoringStrategy(PrioritizationStrategy):
     """Deterministic weighted scoring model.
 
@@ -145,6 +173,7 @@ class DefaultScoringStrategy(PrioritizationStrategy):
             "fix": _fix_score(finding),
             "direct_dep": _direct_dep_score(finding),
             "kev": _kev_score(finding),
+            "compliance": _compliance_score(finding),
         }
 
         total = sum(

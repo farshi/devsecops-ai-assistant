@@ -1,0 +1,24 @@
+{
+  "pattern_id": "PP-0008",
+  "name": "Node jsonwebtoken algorithm-confusion (CVE-2022-23529)",
+  "description": "jsonwebtoken before 9.0.0 allows algorithm confusion attacks including 'none' or asymmetric/symmetric mismatch.",
+  "weakness_class": "CWE-327",
+  "match": {
+    "cve_ids": ["CVE-2022-23529", "CVE-2022-23540", "CVE-2022-23541"],
+    "package": "jsonwebtoken",
+    "ecosystem": "npm",
+    "version_below": "9.0.0"
+  },
+  "controls": {
+    "nist_800_53_rev5": ["IA-2", "IA-5", "SC-13", "SC-23"],
+    "cis_controls_v8": ["6.5", "6.3"],
+    "pci_dss_4_0": ["8.3.1", "8.3.2", "8.3.5"],
+    "iso_27001_2022": ["A.5.17", "A.8.5"],
+    "owasp_asvs_v4": ["3.5.3", "6.2.7"]
+  },
+  "rationale": "Token authentication flaws break NIST IA-2 (identification) and IA-5 (authenticator management). PCI DSS 8.3.1/8.3.2 require secure authentication mechanisms. OWASP ASVS 3.5.3 mandates stateless tokens be signed using strong algorithms with a pre-defined allowlist.",
+  "remediation_priority": "critical",
+  "references": [
+    "https://nvd.nist.gov/vuln/detail/CVE-2022-23529"
+  ]
+}

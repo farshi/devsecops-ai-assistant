@@ -1,5 +1,51 @@
 # Changelog
 
+## v0.5.0 (2026-04-15)
+
+**Compliance pivot** — every finding now speaks NIST, CIS, PCI, ISO, and OWASP.
+
+### Features
+- **Compliance-control mapping** — every Trivy finding is tagged with the
+  NIST 800-53 Rev 5, CIS Controls v8, PCI DSS 4.0, ISO 27001:2022 Annex A,
+  and OWASP ASVS v4 controls it affects. Ships with 9 seed patterns covering
+  Log4Shell, Spring4Shell, outdated crypto libs, Werkzeug RCE, OpenSSL / curl
+  base-image CVEs, JWT algorithm-confusion, and more. Contribute new mappings
+  via JSON in ``agent/mappings/patterns/`` — public-standards only.
+- **`--framework` triage flag** — filter findings to only those that break a
+  named framework's controls (``--framework pci-dss`` etc). Surviving
+  findings are ranked against each other, not a diluted pool, so pre-audit
+  triage lands on what actually matters.
+- **Compliance impact in markdown output** — each action item now renders a
+  ``Compliance impact:`` block listing affected controls across all five
+  frameworks in a deterministic order.
+- **Compliance-hit scoring signal** — weighted at 15% across all finding
+  types. Findings that break mappings outrank CVSS-only peers.
+- **`patchpilot mappings validate` command** — validates every pattern JSON
+  against the schema. Exit 1 on any failure, suitable for CI.
+- **Auto-derived `--target-name`** — target name now defaults to the path
+  basename. ``patchpilot triage --path ./app`` is the full happy-path
+  command; ``--target-name`` is only needed for custom output slugs.
+
+### Packaging
+- Moved optional ``anthropic`` SDK into the ``[ai]`` extra (install via
+  ``pip install patchpilot[ai]``) so the lean default install stays small
+  and LLM-free.
+- Added ``packaging`` as a required dependency for robust version
+  comparison in the compliance mapper (PEP 440 + Debian/RPM/Alpine).
+- ``jsonschema`` is optional via ``[validate]`` — only needed for
+  ``patchpilot mappings validate``.
+- Mapping JSONs ship inside the wheel via package-data; the installed
+  CLI no longer needs a source checkout to run compliance triage.
+
+### Infrastructure
+- 787 tests passing.
+- Adversarial code review round completed and fully addressed (compliance
+  metadata round-trip, finding-type preservation, PEP 440 version parsing,
+  overclaimed NIST mappings, README/README-drift corrections, broader
+  error-handling discipline, tighter schema).
+
+---
+
 ## v0.3.0 (2026-03-31)
 
 Remediation + PR review release. PatchPilot now tells you what to change and catches issues in PRs.

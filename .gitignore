@@ -72,3 +72,6 @@ vulnerable_app/.patchpilot/
 .tat/gpt.md
 .tat/session.md
 .tat/version
+
+# Internal planning/spec directory — never published
+.tat/

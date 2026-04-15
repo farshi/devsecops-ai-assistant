@@ -572,7 +572,7 @@ def _findings_from_summary(summary: dict) -> list:
             finding = Finding(
                 id=fd.get("id", "UNKNOWN"),
                 source_scanner=scanner,
-                finding_type="language_dep",  # default for v1; summary doesn't carry this
+                finding_type=fd.get("finding_type") or _infer_finding_type(scanner, fd),
                 severity=fd.get("severity", "info"),
                 title=fd.get("title", ""),
                 package=fd.get("package"),
@@ -583,6 +583,40 @@ def _findings_from_summary(summary: dict) -> list:
             )
             findings.append(finding)
     return findings
+
+
+def _infer_finding_type(scanner: str, fd: dict) -> str:
+    """Infer finding_type when summary.json did not carry one.
+
+    Ordering:
+    1. Respect an explicit ``finding_type`` (handled by caller).
+    2. Checkov / gitleaks / semgrep map to their natural types.
+    3. Trivy os_package vs language_dep is inferred from the location string:
+       typical OS findings look like ``os-release > <pkg>@<ver>`` or
+       contain an ``/etc/os-release`` / ``/var/lib/dpkg/`` token; everything
+       else from Trivy defaults to language_dep.
+    4. Unknown scanners default to language_dep.
+    """
+    if scanner == "checkov":
+        return "iac_misconfig"
+    if scanner == "gitleaks":
+        return "secret"
+    if scanner == "semgrep":
+        return "code_pattern"
+
+    location = (fd.get("location") or "").lower()
+    os_markers = ("os-release", "/etc/os-release", "/var/lib/dpkg", "/var/lib/rpm")
+    if any(marker in location for marker in os_markers):
+        return "os_package"
+
+    # Heuristic: no file extension + no language manifest keyword → likely OS pkg.
+    if location and "." not in location.split("/")[-1]:
+        lang_markers = ("requirements", "package.json", "pom.xml", "go.mod",
+                        "gemfile", "cargo.toml", "composer")
+        if not any(marker in location for marker in lang_markers):
+            return "os_package"
+
+    return "language_dep"
 
 
 def _apply_token_budget(findings: list, max_findings: int = MAX_FINDINGS) -> tuple:
@@ -687,6 +721,19 @@ def build_context(path: str, scan_summary_path: str) -> dict:
         KEVEnrichmentPlugin().enrich(findings, {})
     except Exception:
         pass
+
+    try:
+        from agent.plugins.enrichment.compliance import ComplianceEnrichmentPlugin
+        ComplianceEnrichmentPlugin().enrich(findings, {})
+    except Exception as exc:  # pragma: no cover - defensive
+        # Intentionally logged rather than silent: a dropped compliance
+        # enrichment is a soft degradation of the core value prop, so the
+        # operator should see *something* in the logs. We still do not raise
+        # because enrichment is best-effort and must not block triage.
+        import logging
+        logging.getLogger(__name__).warning(
+            "compliance enrichment failed: %s", exc, exc_info=True,
+        )
 
     # Step 7: Token budgeting
     trimmed_findings, budget_info = _apply_token_budget(findings)

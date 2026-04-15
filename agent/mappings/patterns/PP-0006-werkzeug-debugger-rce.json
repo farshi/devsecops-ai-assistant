@@ -1,0 +1,23 @@
+{
+  "pattern_id": "PP-0006",
+  "name": "Werkzeug debugger remote code execution (CVE-2024-34069)",
+  "description": "The interactive debugger in Werkzeug can be tricked into executing code via crafted requests when exposed.",
+  "weakness_class": "CWE-77",
+  "match": {
+    "cve_ids": ["CVE-2024-34069"],
+    "package": "werkzeug",
+    "ecosystem": "pypi",
+    "version_below": "3.0.3"
+  },
+  "controls": {
+    "nist_800_53_rev5": ["SI-2", "SI-10", "AC-6", "CM-7"],
+    "cis_controls_v8": ["4.8", "16.7"],
+    "pci_dss_4_0": ["6.3.3", "7.2.1", "2.2.4"],
+    "iso_27001_2022": ["A.8.9", "A.8.25"]
+  },
+  "rationale": "Debug interfaces exposed in production violate NIST CM-7 (least functionality) and AC-6 (least privilege). PCI DSS 2.2.4 requires removal of unnecessary functionality. Fixing the library closes the attack path; disabling the debugger in production is the policy control.",
+  "remediation_priority": "critical",
+  "references": [
+    "https://nvd.nist.gov/vuln/detail/CVE-2024-34069"
+  ]
+}
