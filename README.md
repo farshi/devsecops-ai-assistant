@@ -44,30 +44,24 @@ Requires Python 3.9+ and [Trivy](https://aquasecurity.github.io/trivy/).
 # Run the full triage pipeline against a repo
 patchpilot triage --path ./my-project
 
-# Filter to only findings that break PCI DSS 4.0
-patchpilot triage --path ./my-project --framework pci-dss
-
-# Fail CI if any finding breaks a NIST control
-patchpilot triage --path ./my-project --framework nist-800-53 --fail-on any
+# Fail CI if any finding is high or above
+patchpilot triage --path ./my-project --fail-on high
 ```
 
-Example output:
+The triage pipeline runs Trivy, enriches findings with EPSS exploitability
+scores, CISA KEV presence, and — new in the compliance-aware release —
+attaches the NIST / CIS / PCI DSS / ISO 27001 / OWASP ASVS controls each
+finding impacts. Controls travel with the finding through the JSON output so
+downstream tooling can consume them.
 
-```
-[triage]  12 findings after enrichment
+Per-framework filtering at the CLI (`--framework`) and a dedicated
+"Compliance impact" output block are on the roadmap but not yet in this
+release. The controls are already present on each finding in the JSON output,
+so you can post-process with `jq` today:
 
-  #1  CVE-2023-50447  Pillow arbitrary code execution   score: 82
-      Upgrade pillow >= 10.2.0
-      Compliance impact:
-        NIST 800-53:  SI-2, SI-3
-        CIS:          5.1, 5.2
-        PCI DSS 4.0:  6.3.3
-
-  #2  CVE-2024-34069  Werkzeug debugger RCE             score: 76
-      Upgrade werkzeug >= 3.0.3
-      Compliance impact:
-        NIST 800-53:  AC-6, SC-8
-        PCI DSS 4.0:  7.2.1
+```bash
+patchpilot triage --path ./my-project --output json \
+  | jq '.findings[] | select(.compliance_controls.pci_dss_4_0) | {id, controls: .compliance_controls}'
 ```
 
 ## How findings are scored
@@ -76,12 +70,15 @@ Deterministic weighted model. No LLM guesswork in the scoring path.
 
 | Signal          | What it measures                                             | Weight |
 |-----------------|--------------------------------------------------------------|--------|
-| CVSS severity   | How bad if exploited                                         | 25%    |
+| CVSS severity   | How bad if exploited                                         | 20%    |
 | EPSS            | Probability of exploitation in next 30 days (FIRST.org)      | 15%    |
 | KEV             | Listed in CISA Known Exploited Vulnerabilities catalog       | 15%    |
-| Compliance hit  | Number of controls this finding breaks, weighted by framework| 20%    |
-| Usage signal    | Package declared in project's dependency manifest            | 15%    |
-| Fix available   | Patch version exists                                         | 10%    |
+| Usage signal    | Package declared in project's dependency manifest            | 25%    |
+| Fix available   | Patch version exists                                         | 15%    |
+| Direct dep      | Your dep vs a transitive one                                 | 10%    |
+
+The compliance mapping is attached to each finding as data; a weighted
+"compliance hit" signal in the scorer is planned for the next release.
 
 **Note on "usage signal":** PatchPilot currently checks whether the vulnerable
 package is declared in your project's manifest (`pyproject.toml`,

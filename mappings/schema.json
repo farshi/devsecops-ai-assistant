@@ -13,6 +13,7 @@
     },
     "name": {
       "type": "string",
+      "minLength": 1,
       "description": "Short human-readable label"
     },
     "description": {
@@ -26,20 +27,25 @@
     "match": {
       "type": "object",
       "description": "How PatchPilot decides a finding matches this pattern.",
+      "minProperties": 1,
       "properties": {
-        "package": { "type": "string" },
+        "package": { "type": "string", "minLength": 1 },
         "ecosystem": {
           "type": "string",
           "enum": ["pypi", "npm", "maven", "rubygems", "go", "cargo", "composer", "os", "generic"]
         },
-        "version_below": { "type": "string" },
+        "version_below": { "type": "string", "minLength": 1 },
         "cve_ids": {
           "type": "array",
-          "items": { "type": "string", "pattern": "^CVE-[0-9]{4}-[0-9]+$" }
+          "items": { "type": "string", "pattern": "^CVE-[0-9]{4}-[0-9]+$" },
+          "uniqueItems": true,
+          "minItems": 1
         },
         "cwe_ids": {
           "type": "array",
-          "items": { "type": "string", "pattern": "^CWE-[0-9]+$" }
+          "items": { "type": "string", "pattern": "^CWE-[0-9]+$" },
+          "uniqueItems": true,
+          "minItems": 1
         }
       },
       "additionalProperties": false
@@ -47,38 +53,50 @@
     "controls": {
       "type": "object",
       "description": "Public compliance control identifiers this pattern affects.",
+      "minProperties": 1,
       "properties": {
         "nist_800_53_rev5": {
           "type": "array",
-          "items": { "type": "string" },
-          "description": "NIST SP 800-53 Rev 5 control IDs, e.g. SC-8"
+          "items": { "type": "string", "pattern": "^[A-Z]{2}-[0-9]+(\\([0-9]+\\))?$" },
+          "uniqueItems": true,
+          "minItems": 1,
+          "description": "NIST SP 800-53 Rev 5 control IDs, e.g. SC-8, SC-8(1)"
         },
         "cis_controls_v8": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)*$" },
+          "uniqueItems": true,
+          "minItems": 1,
           "description": "CIS Controls v8 safeguards, e.g. 3.10"
         },
         "pci_dss_4_0": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)*$" },
+          "uniqueItems": true,
+          "minItems": 1,
           "description": "PCI DSS 4.0 requirement IDs, e.g. 6.3.3"
         },
         "iso_27001_2022": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": { "type": "string", "pattern": "^A\\.[0-9]+(\\.[0-9]+)*$" },
+          "uniqueItems": true,
+          "minItems": 1,
           "description": "ISO/IEC 27001:2022 Annex A control IDs, e.g. A.8.24"
         },
         "owasp_asvs_v4": {
           "type": "array",
-          "items": { "type": "string" },
-          "description": "OWASP ASVS v4 requirement IDs"
+          "items": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)+$" },
+          "uniqueItems": true,
+          "minItems": 1,
+          "description": "OWASP ASVS v4 requirement IDs, e.g. 6.2.2"
         }
       },
       "additionalProperties": false
     },
     "rationale": {
       "type": "string",
-      "description": "Why this pattern breaks the listed controls. Must cite what the control requires."
+      "minLength": 20,
+      "description": "Why this pattern breaks the listed controls. Must cite what the control requires in original wording."
     },
     "remediation_priority": {
       "type": "string",
@@ -86,7 +104,8 @@
     },
     "references": {
       "type": "array",
-      "items": { "type": "string", "format": "uri" }
+      "items": { "type": "string", "format": "uri" },
+      "uniqueItems": true
     }
   },
   "additionalProperties": false

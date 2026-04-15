@@ -350,6 +350,8 @@ def _finding_from_dict(d: dict) -> Finding:
         fix_evidence=d.get("fix_evidence"),
         priority_score=d.get("priority_score", 0),
         priority_tier=d.get("priority_tier", "unscored"),
+        compliance_controls=d.get("compliance_controls") or {},
+        compliance_patterns_matched=d.get("compliance_patterns_matched") or [],
     )
 
 

@@ -12,12 +12,18 @@ directory — see ``mappings/README.md`` and ``mappings/sources.md``.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Iterable
 
+from packaging.version import InvalidVersion, Version
+
 from agent.models import Finding
 from agent.plugins.base import EnrichmentPlugin
+
+
+logger = logging.getLogger(__name__)
 
 
 # Map Trivy's finding_type → our mapping-schema ecosystem values.
@@ -33,35 +39,76 @@ _FINDING_TYPE_TO_ECOSYSTEM_HINT = {
 # Minimum fields a pattern must have to be considered valid.
 _REQUIRED_PATTERN_FIELDS = ("pattern_id", "name", "match", "controls", "rationale")
 
+# Regexes for normalising OS-package / Debian / RPM version strings into
+# something packaging.version.Version can parse.
+_TILDE_PRERELEASE_RE = re.compile(r"~([a-zA-Z]+)(\d*)")
+# "-1ubuntu2.3", "-1.el8_4.1", "-2ubuntu1" — Debian/RPM revision starts with a digit
+_DIGIT_REVISION_RE = re.compile(r"-\d\S*$")
+# "-deb11u1", "-dfsg-1", "-1+build1" — revisions that don't start with a digit
+_NAMED_REVISION_RE = re.compile(
+    r"-(?:deb|ubuntu|el|rhel|fc|build|dfsg|git)[^\s]*$", re.IGNORECASE
+)
 
-def _parse_version(v: str) -> tuple:
-    """Tolerant version parser — returns a tuple of ints for comparison.
 
-    Strips leading 'v', ignores suffixes after first non-numeric segment.
-    Good enough for semver / PEP 440 ordering in the common case.
-    Unknown formats sort as (0,), which is safe for the "version_below"
-    use case (we will not claim a match if we cannot parse).
+def _normalise_for_packaging(v: str) -> str:
+    """Rewrite common OS / Debian / RPM version shapes into PEP-440-friendly form.
+
+    Rules:
+    - Strip leading ``v`` / ``V``.
+    - Convert Debian tilde pre-release (``~beta1``) to the PEP 440 equivalent
+      (``b1``) so ordering vs the final release is preserved: ``1.0~beta1 < 1.0``.
+    - Strip Debian/RPM revision suffixes entirely. ``3.0.12-1ubuntu2.3`` becomes
+      ``3.0.12`` — distro revisions do not affect upstream compliance-mapping
+      semantics and would otherwise poison packaging.Version parsing.
     """
-    if not v:
-        return (0,)
-    v = v.lstrip("vV").strip()
-    parts = re.split(r"[^0-9]+", v)
-    nums = []
-    for p in parts:
-        if not p:
-            continue
-        try:
-            nums.append(int(p))
-        except ValueError:
-            break
+    v = v.strip().lstrip("vV")
+
+    def _tilde_repl(m: re.Match) -> str:
+        word = m.group(1).lower()
+        num = m.group(2) or "0"
+        pep = {"alpha": "a", "beta": "b", "pre": "rc"}.get(word, word)
+        return pep + num
+
+    v = _TILDE_PRERELEASE_RE.sub(_tilde_repl, v)
+    v = _DIGIT_REVISION_RE.sub("", v)
+    v = _NAMED_REVISION_RE.sub("", v)
+    return v
+
+
+def _numeric_tuple(v: str) -> tuple[int, ...]:
+    """Fallback ordering — extract numeric segments left-to-right."""
+    nums = [int(p) for p in re.findall(r"\d+", v or "")]
     return tuple(nums) if nums else (0,)
 
 
 def _version_less_than(installed: str | None, threshold: str) -> bool:
-    """Return True iff installed < threshold per the tolerant parser."""
-    if not installed:
+    """Return True iff ``installed < threshold``.
+
+    Strategy:
+    1. Try ``packaging.version.Version`` on both sides (handles PEP 440
+       including epochs, pre-releases, post-releases).
+    2. If either side is not a valid PEP 440 version, strip common distro
+       suffixes and try again.
+    3. Final fallback is numeric-segment tuple ordering — lossy but safe
+       for the common semver-ish case. Logs at DEBUG when this path fires
+       so operators can see where mapping accuracy may be degraded.
+    """
+    if not installed or not threshold:
         return False
-    return _parse_version(installed) < _parse_version(threshold)
+
+    for left, right in ((installed, threshold),
+                        (_normalise_for_packaging(installed),
+                         _normalise_for_packaging(threshold))):
+        try:
+            return Version(left) < Version(right)
+        except InvalidVersion:
+            continue
+
+    logger.debug(
+        "compliance: falling back to numeric-tuple compare for versions "
+        "%r vs %r", installed, threshold,
+    )
+    return _numeric_tuple(installed) < _numeric_tuple(threshold)
 
 
 def _ecosystem_of_finding(finding: Finding) -> set[str]:
@@ -97,13 +144,16 @@ def _pattern_matches_finding(pattern: dict, finding: Finding) -> bool:
         if finding.id.upper() not in {c.upper() for c in match["cve_ids"]}:
             return False
 
-    if "cwe_ids" in match:
-        # We do not currently store CWE on Finding; fall through unless the
-        # finding title or id embeds the CWE reference. This is intentionally
-        # conservative — false negatives are better than false positives.
-        fid = finding.id.upper()
-        if not any(c.upper() in fid for c in match["cwe_ids"]):
-            return False
+    # CWE matching is intentionally not supported in v1: the Finding model
+    # does not carry a CWE field. Patterns that declare ``cwe_ids`` without
+    # any other discriminator would match too broadly, so we skip them
+    # entirely (log at DEBUG to surface the mapping gap to contributors).
+    if "cwe_ids" in match and len(match) == 1:
+        logger.debug(
+            "compliance: pattern matches only by cwe_ids which is "
+            "unsupported in v1 — skipping"
+        )
+        return False
 
     return True
 
@@ -159,16 +209,36 @@ class ComplianceEnrichmentPlugin(EnrichmentPlugin):
     @staticmethod
     def _load_patterns(directory: Path) -> list[dict]:
         if not directory.exists():
+            logger.info("compliance: no mappings directory at %s", directory)
             return []
         patterns: list[dict] = []
         for path in sorted(directory.glob("*.json")):
             try:
                 with path.open() as f:
                     data = json.load(f)
-            except (OSError, json.JSONDecodeError):
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("compliance: skipping malformed pattern %s: %s", path.name, exc)
                 continue
-            if all(k in data for k in _REQUIRED_PATTERN_FIELDS):
-                patterns.append(data)
+            missing = [k for k in _REQUIRED_PATTERN_FIELDS if k not in data]
+            if missing:
+                logger.warning(
+                    "compliance: skipping %s (missing fields: %s)",
+                    path.name, ", ".join(missing),
+                )
+                continue
+            if not data.get("match"):
+                logger.warning(
+                    "compliance: skipping %s (empty match block — would never match)",
+                    path.name,
+                )
+                continue
+            if not data.get("controls"):
+                logger.warning(
+                    "compliance: skipping %s (empty controls block — nothing to attach)",
+                    path.name,
+                )
+                continue
+            patterns.append(data)
         return patterns
 
 

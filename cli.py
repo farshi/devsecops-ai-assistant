@@ -1099,6 +1099,76 @@ def review(path, target_name, mode, branch, dry_run):
 
 
 # ---------------------------------------------------------------------------
+# Mappings — compliance control mapping management
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def mappings():
+    """Inspect and validate compliance mappings."""
+
+
+@mappings.command("validate")
+@click.option("--path", default=None,
+              help="Custom mappings/patterns directory. Defaults to the bundled one.")
+def mappings_validate(path):
+    """Validate every JSON file in mappings/patterns against the schema.
+
+    Exit codes:
+      0 — all patterns valid
+      1 — at least one pattern failed validation
+    """
+    from pathlib import Path as _P
+    import json as _json
+
+    patterns_dir = _P(path) if path else (
+        _P(__file__).resolve().parent / "mappings" / "patterns"
+    )
+    schema_path = patterns_dir.parent / "schema.json"
+
+    if not schema_path.exists():
+        click.echo(f"error: schema not found at {schema_path}", err=True)
+        raise SystemExit(2)
+    if not patterns_dir.exists():
+        click.echo(f"error: patterns dir not found at {patterns_dir}", err=True)
+        raise SystemExit(2)
+
+    try:
+        import jsonschema  # optional dep
+    except ImportError:
+        click.echo(
+            "validation requires the 'jsonschema' package: pip install jsonschema",
+            err=True,
+        )
+        raise SystemExit(2)
+
+    schema = _json.loads(schema_path.read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+
+    total = 0
+    failed = 0
+    for p in sorted(patterns_dir.glob("*.json")):
+        total += 1
+        try:
+            data = _json.loads(p.read_text())
+        except _json.JSONDecodeError as exc:
+            click.echo(f"  FAIL  {p.name}  (invalid JSON: {exc})")
+            failed += 1
+            continue
+        errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
+        if errors:
+            click.echo(f"  FAIL  {p.name}")
+            for err in errors:
+                loc = "/".join(str(s) for s in err.absolute_path) or "<root>"
+                click.echo(f"         {loc}: {err.message}")
+            failed += 1
+        else:
+            click.echo(f"  ok    {p.name}")
+
+    click.echo(f"\n{total - failed}/{total} patterns valid")
+    raise SystemExit(1 if failed else 0)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
