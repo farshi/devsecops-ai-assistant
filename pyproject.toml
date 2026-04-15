@@ -4,18 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "patchpilot"
-version = "0.3.0"
-description = "Smart vulnerability triage — ranked by reachability, exploitability, and fixability"
+version = "0.5.0"
+description = "CVE triage that speaks compliance — ranks findings by NIST / CIS / PCI / ISO control impact, not just CVSS."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
 authors = [
     {name = "PatchPilot Contributors"}
 ]
+keywords = [
+    "security", "devsecops", "vulnerability", "triage", "cve",
+    "compliance", "nist", "cis", "pci-dss", "iso-27001", "trivy",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -24,16 +29,27 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Security",
     "Topic :: Software Development :: Quality Assurance",
+    "Topic :: System :: Systems Administration",
 ]
 dependencies = [
-    "anthropic>=0.25.0",
     "click>=8.1.0",
+    "packaging>=21.0",
 ]
 
 [project.optional-dependencies]
+# Optional — only needed for `patchpilot mappings validate` (schema check).
+validate = [
+    "jsonschema>=4.0.0",
+]
+# Optional — only needed for AI-enhanced reports via `patchpilot report`.
+ai = [
+    "anthropic>=0.25.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
+    "jsonschema>=4.0.0",
+    "anthropic>=0.25.0",
 ]
 
 [project.scripts]
@@ -42,12 +58,20 @@ patchpilot = "cli:cli"
 [project.urls]
 Homepage = "https://github.com/farshi/devsecops-ai-assistant"
 Repository = "https://github.com/farshi/devsecops-ai-assistant"
+Issues = "https://github.com/farshi/devsecops-ai-assistant/issues"
+Changelog = "https://github.com/farshi/devsecops-ai-assistant/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 py-modules = ["cli"]
 
 [tool.setuptools.packages.find]
 include = ["agent*", "devsecops*", "prompts*"]
+
+# Ship the compliance mapping JSON files + the JSON schema inside the wheel.
+# Without this, `pip install patchpilot` yields a binary with zero control
+# mappings.
+[tool.setuptools.package-data]
+"agent.mappings" = ["*.json", "*.md", "patterns/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,22 @@
+{
+  "pattern_id": "PP-0004",
+  "name": "Outdated Python requests (weak TLS defaults)",
+  "description": "Python requests below 2.31.0 pins an older urllib3 with TLS verification weaknesses and proxy-Authorization leak bug (CVE-2023-32681).",
+  "weakness_class": "CWE-295",
+  "match": {
+    "package": "requests",
+    "ecosystem": "pypi",
+    "version_below": "2.31.0"
+  },
+  "controls": {
+    "nist_800_53_rev5": ["SC-8", "SC-23", "IA-5"],
+    "cis_controls_v8": ["3.10", "6.5"],
+    "pci_dss_4_0": ["4.2.1", "8.3.2"],
+    "iso_27001_2022": ["A.8.24", "A.5.17"]
+  },
+  "rationale": "Transport security libraries with known TLS or credential-leak flaws break NIST SC-8 (protected transmission) and IA-5 (authenticator management). PCI DSS 4.2.1 requires strong cryptography; 8.3.2 requires credentials not be exposed during transit.",
+  "remediation_priority": "high",
+  "references": [
+    "https://nvd.nist.gov/vuln/detail/CVE-2023-32681"
+  ]
+}

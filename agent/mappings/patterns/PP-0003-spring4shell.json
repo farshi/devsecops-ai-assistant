@@ -1,0 +1,22 @@
+{
+  "pattern_id": "PP-0003",
+  "name": "Spring4Shell (CVE-2022-22965)",
+  "description": "Spring Framework class loader manipulation leading to remote code execution.",
+  "weakness_class": "CWE-78",
+  "match": {
+    "cve_ids": ["CVE-2022-22965"],
+    "package": "spring-core",
+    "ecosystem": "maven"
+  },
+  "controls": {
+    "nist_800_53_rev5": ["SI-2", "SI-3", "SI-10"],
+    "cis_controls_v8": ["7.3", "16.11"],
+    "pci_dss_4_0": ["6.3.3", "6.2.4"],
+    "iso_27001_2022": ["A.8.25", "A.8.28"]
+  },
+  "rationale": "Remote code execution in a framework used on the request path via manipulated class loader binding. NIST SI-10 requires input validation; SI-2 timely flaw remediation. PCI DSS 6.2.4 requires secure coding practices that prevent injection. Listed in CISA KEV.",
+  "remediation_priority": "critical",
+  "references": [
+    "https://nvd.nist.gov/vuln/detail/CVE-2022-22965"
+  ]
+}

@@ -43,6 +43,12 @@ class Finding:
     priority_score: int = 0
     priority_tier: str = "unscored"
 
+    # Compliance mapping (added by compliance enrichment plugin)
+    compliance_controls: dict = field(default_factory=dict)
+    # e.g. {"nist_800_53_rev5": ["SC-8", "SC-13"], "pci_dss_4_0": ["4.2.1"]}
+    compliance_patterns_matched: list = field(default_factory=list)
+    # e.g. ["PP-0001", "PP-0004"]
+
     def fingerprint(self) -> str:
         """Stable identity for this finding across scans.
 
