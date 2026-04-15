@@ -688,6 +688,12 @@ def build_context(path: str, scan_summary_path: str) -> dict:
     except Exception:
         pass
 
+    try:
+        from agent.plugins.enrichment.compliance import ComplianceEnrichmentPlugin
+        ComplianceEnrichmentPlugin().enrich(findings, {})
+    except Exception:
+        pass
+
     # Step 7: Token budgeting
     trimmed_findings, budget_info = _apply_token_budget(findings)
 
