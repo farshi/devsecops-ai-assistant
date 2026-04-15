@@ -1,8 +1,8 @@
 # Changelog
 
-## v0.5.0 (2026-04-15)
+## v0.7.0 (2026-04-15)
 
-**Compliance pivot** — every finding now speaks NIST, CIS, PCI, ISO, and OWASP.
+**Compliance-aware triage pivot** — every finding now speaks NIST, CIS, PCI, ISO, and OWASP.
 
 ### Features
 - **Compliance-control mapping** — every Trivy finding is tagged with the
