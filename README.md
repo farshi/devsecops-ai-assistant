@@ -42,43 +42,45 @@ Requires Python 3.9+ and [Trivy](https://aquasecurity.github.io/trivy/).
 
 ```bash
 # Run the full triage pipeline against a repo
-patchpilot triage --path ./my-project
+patchpilot triage --path ./my-project --target-name myapp
 
-# Fail CI if any finding is high or above
-patchpilot triage --path ./my-project --fail-on high
+# Show only findings that break a PCI DSS 4.0 control
+patchpilot triage --path ./my-project --target-name myapp --framework pci-dss
+
+# Fail CI if any high-tier finding is present
+patchpilot triage --path ./my-project --target-name myapp --fail-on high
 ```
 
 The triage pipeline runs Trivy, enriches findings with EPSS exploitability
-scores, CISA KEV presence, and — new in the compliance-aware release —
-attaches the NIST / CIS / PCI DSS / ISO 27001 / OWASP ASVS controls each
-finding impacts. Controls travel with the finding through the JSON output so
-downstream tooling can consume them.
+scores and CISA KEV presence, then attaches the NIST 800-53 / CIS v8 / PCI
+DSS 4.0 / ISO 27001 / OWASP ASVS controls each finding impacts. The number
+of frameworks a finding breaks feeds the score, so compliance-relevant
+findings rank above CVSS-only noise.
 
-Per-framework filtering at the CLI (`--framework`) and a dedicated
-"Compliance impact" output block are on the roadmap but not yet in this
-release. The controls are already present on each finding in the JSON output,
-so you can post-process with `jq` today:
+Each triage action item prints a ``Compliance impact:`` block listing the
+controls affected, and the data also travels with the finding through the
+JSON output for downstream tooling:
 
 ```bash
-patchpilot triage --path ./my-project --output json \
-  | jq '.findings[] | select(.compliance_controls.pci_dss_4_0) | {id, controls: .compliance_controls}'
+patchpilot triage --path ./my-project --target-name myapp \
+  | jq '.triage.action_items[] | {id, score: .priority_score, controls: .compliance.controls}'
 ```
 
 ## How findings are scored
 
-Deterministic weighted model. No LLM guesswork in the scoring path.
+Deterministic weighted model — no LLM guesswork in the scoring path.
+Weights vary by finding type so that OS-package findings are not judged
+on reachability signals that only apply to language deps.
 
-| Signal          | What it measures                                             | Weight |
-|-----------------|--------------------------------------------------------------|--------|
-| CVSS severity   | How bad if exploited                                         | 20%    |
-| EPSS            | Probability of exploitation in next 30 days (FIRST.org)      | 15%    |
-| KEV             | Listed in CISA Known Exploited Vulnerabilities catalog       | 15%    |
-| Usage signal    | Package declared in project's dependency manifest            | 25%    |
-| Fix available   | Patch version exists                                         | 15%    |
-| Direct dep      | Your dep vs a transitive one                                 | 10%    |
-
-The compliance mapping is attached to each finding as data; a weighted
-"compliance hit" signal in the scorer is planned for the next release.
+| Signal            | What it measures                                             | Lang. dep | OS pkg |
+|-------------------|--------------------------------------------------------------|-----------|--------|
+| CVSS severity     | How bad if exploited                                         |   18%     |  30%   |
+| EPSS              | Probability of exploitation in next 30 days (FIRST.org)      |   13%     |  17%   |
+| KEV               | Listed in CISA Known Exploited Vulnerabilities catalog       |   12%     |  21%   |
+| Usage signal      | Package declared in project's dependency manifest            |   22%     |   —    |
+| Fix available     | Patch version exists                                         |   12%     |  17%   |
+| Direct dep        | Your dep vs a transitive one                                 |    8%     |   —    |
+| **Compliance hit**| Number of compliance frameworks whose controls this breaks   |   15%     |  15%   |
 
 **Note on "usage signal":** PatchPilot currently checks whether the vulnerable
 package is declared in your project's manifest (`pyproject.toml`,

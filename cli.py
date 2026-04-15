@@ -222,7 +222,15 @@ def report(target_name, path, top, dry_run):
               help="Path to a SARIF 2.1.0 JSON file. Findings are merged into the triage pipeline.")
 @click.option("--pr-comment", is_flag=True, default=False,
               help="Post triage results as PR comment (requires gh CLI & PR context).")
-def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues, owners, sarif_path, pr_comment):
+@click.option("--framework",
+              type=click.Choice(
+                  ["nist-800-53", "cis-v8", "pci-dss", "iso-27001", "owasp-asvs"],
+                  case_sensitive=False,
+              ),
+              default=None,
+              help="Keep only findings that break a control in this compliance "
+                   "framework. Typical use: rank what matters for an audit.")
+def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, output_format, new_only, create_issues, owners, sarif_path, pr_comment, framework):
     """Smart vulnerability triage — ranked by reachability, exploitability, and fixability.
 
     \b
@@ -355,7 +363,11 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
     click.echo("  [4/5] Scoring and ranking...")
 
     from agent.prioritizer import run_triage
-    result = run_triage(path, summary_path, top_n=top, enhance=enhance, new_only=new_only)
+    result = run_triage(
+        path, summary_path,
+        top_n=top, enhance=enhance, new_only=new_only,
+        framework=framework,
+    )
 
     # Resolve ownership if requested
     if owners:

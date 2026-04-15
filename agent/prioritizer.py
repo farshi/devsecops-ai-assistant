@@ -129,6 +129,25 @@ def _generate_markdown(
 
         lines.append(f"**Signals:** {' | '.join(signal_parts)}")
 
+        # Compliance impact — only rendered when the finding broke mappings
+        compliance = item.get("compliance") or {}
+        controls = compliance.get("controls") or {}
+        if controls:
+            lines.append("**Compliance impact:**")
+            # Fixed render order so output is deterministic regardless of
+            # dict insertion order.
+            framework_labels = [
+                ("nist_800_53_rev5", "NIST 800-53"),
+                ("cis_controls_v8",  "CIS v8"),
+                ("pci_dss_4_0",      "PCI DSS 4.0"),
+                ("iso_27001_2022",   "ISO 27001"),
+                ("owasp_asvs_v4",    "OWASP ASVS"),
+            ]
+            for key, label in framework_labels:
+                ids = controls.get(key)
+                if ids:
+                    lines.append(f"- {label}: {', '.join(ids)}")
+
         fix = item.get("fix_suggestion", {})
         if fix.get("command"):
             lines.append(
@@ -287,6 +306,10 @@ def generate_triage(
                 "in_kev": finding.in_kev,
                 "fix_available": finding.fix_available,
             },
+            "compliance": {
+                "controls": finding.compliance_controls,
+                "patterns_matched": finding.compliance_patterns_matched,
+            },
         }
         action_items.append(item)
 
@@ -361,6 +384,7 @@ def run_triage(
     top_n: int = 5,
     enhance: bool = False,
     new_only: bool = False,
+    framework: Optional[str] = None,
 ) -> dict:
     """Full triage pipeline: build context → score → generate output.
 
@@ -372,6 +396,10 @@ def run_triage(
         top_n: Number of top findings to include in the action list.
         enhance: If True and ANTHROPIC_API_KEY is set, add LLM narratives to action items.
         new_only: If True, only surface findings that are new since the last baseline.
+        framework: Optional compliance framework filter. CLI values like
+            ``"nist-800-53"`` are translated to the schema key used by the
+            compliance enrichment plugin (``"nist_800_53_rev5"``) and only
+            findings with at least one control in that framework are kept.
     """
     from agent.context_builder import build_context
     from agent.config import load_config, apply_config_filters
@@ -397,6 +425,20 @@ def run_triage(
     # Filter to new-only if requested
     if new_only:
         findings = filter_new_only(findings, path)
+
+    # Filter by compliance framework if requested
+    if framework:
+        from agent.plugins.enrichment.compliance import framework_filter
+        framework_key_map = {
+            "nist-800-53": "nist_800_53_rev5",
+            "cis-v8":      "cis_controls_v8",
+            "pci-dss":     "pci_dss_4_0",
+            "iso-27001":   "iso_27001_2022",
+            "owasp-asvs":  "owasp_asvs_v4",
+        }
+        key = framework_key_map.get(framework.lower())
+        if key:
+            findings = framework_filter(findings, key)
 
     # Run fix availability enrichment (in case build_context didn't)
     from agent.plugins.enrichment.fix_availability import FixAvailabilityPlugin

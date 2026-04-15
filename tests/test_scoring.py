@@ -122,14 +122,20 @@ def test_os_package_uses_different_weights():
 # ---------------------------------------------------------------------------
 
 def test_iac_misconfig_uses_default_weights():
-    """iac_misconfig findings only use severity (60%) and fix (40%) weights."""
-    # Max score: severity=critical (1.0) * 0.60 + fix=True (1.0) * 0.40 = 1.0 -> 100
+    """iac_misconfig findings use severity (50%), fix (35%), compliance (15%).
+
+    The previous profile was severity(60) + fix(40); adding the compliance
+    signal reduced both to make room for it.
+    """
+    # No compliance hit: severity=critical (1.0)*0.50 + fix=True (1.0)*0.35
+    #   + compliance=0 * 0.15 = 0.85 -> 85
     finding_max = make_finding(
         finding_type="iac_misconfig",
         severity="critical",
         fix_available=True,
     )
-    # Min score: severity=info (0.0) * 0.60 + fix=False (0.3) * 0.40 = 0.12 -> 12
+    # Min: severity=info (0.0)*0.50 + fix=False (0.3)*0.35 + compliance=0*0.15
+    #   = 0.105 -> 10 (Python banker's rounding of 0.105*100)
     finding_min = make_finding(
         finding_type="iac_misconfig",
         severity="info",
@@ -137,8 +143,17 @@ def test_iac_misconfig_uses_default_weights():
     )
     strategy = DefaultScoringStrategy()
     strategy.score([finding_max, finding_min])
-    assert finding_max.priority_score == 100
-    assert finding_min.priority_score == 12
+    assert finding_max.priority_score == 85
+    assert finding_min.priority_score == 10
+
+    # A compliance-mapped finding reaches a higher ceiling. With two
+    # frameworks hit: 1.0*0.50 + 1.0*0.35 + 0.75*0.15 = 0.9625 -> 96
+    finding_max.compliance_controls = {
+        "nist_800_53_rev5": ["SC-8"],
+        "pci_dss_4_0": ["4.2.1"],
+    }
+    strategy.score([finding_max])
+    assert finding_max.priority_score == 96
 
 
 # ---------------------------------------------------------------------------
