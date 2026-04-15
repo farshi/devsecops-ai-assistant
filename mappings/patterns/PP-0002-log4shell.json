@@ -1,0 +1,24 @@
+{
+  "pattern_id": "PP-0002",
+  "name": "Log4Shell (CVE-2021-44228)",
+  "description": "Log4j JNDI lookup remote code execution. On the CISA KEV list since publication.",
+  "weakness_class": "CWE-502",
+  "match": {
+    "cve_ids": ["CVE-2021-44228", "CVE-2021-45046", "CVE-2021-45105"],
+    "package": "log4j-core",
+    "ecosystem": "maven"
+  },
+  "controls": {
+    "nist_800_53_rev5": ["SI-2", "SI-3", "RA-5", "SI-10", "AU-2"],
+    "cis_controls_v8": ["7.3", "7.7", "8.2"],
+    "pci_dss_4_0": ["6.3.3", "11.3.1"],
+    "iso_27001_2022": ["A.8.8", "A.8.15"],
+    "owasp_asvs_v4": ["5.5.2", "7.1.1"]
+  },
+  "rationale": "Remote code execution via unchecked logger input. NIST SI-2 requires timely flaw remediation; SI-3 malicious code protection; RA-5 vulnerability monitoring. PCI DSS 6.3.3 requires applying critical patches within one month of release. This CVE is in the CISA KEV catalog — US federal directive 22-02 requires remediation.",
+  "remediation_priority": "critical",
+  "references": [
+    "https://nvd.nist.gov/vuln/detail/CVE-2021-44228",
+    "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+  ]
+}

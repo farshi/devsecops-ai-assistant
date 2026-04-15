@@ -1,170 +1,171 @@
 # PatchPilot
 
-**Smart vulnerability triage for developers.** Turns 200 scanner findings into "fix these 3 things this week."
+**CVE triage that speaks compliance.** Every finding is tagged with the specific
+NIST 800-53, CIS Benchmark, and PCI DSS controls it affects — so developers in
+regulated organisations fix what the audit actually cares about, not just what
+CVSS happens to rank highest.
 
 ```
-Scanner output (Trivy)
-    → PatchPilot reads your codebase context
-    → Checks reachability: is this package actually imported?
-    → Checks exploitability: EPSS score + CISA KEV catalog
-    → Scores and ranks by what actually matters
-    → "Fix these 3 things. Here's why. Here's how."
+Trivy scan
+    → enrich with EPSS exploitability + CISA KEV
+    → map each finding to NIST / CIS / PCI controls
+    → deterministic scoring → top 5 actions
+    → output: "fix X — breaks NIST SC-8 and PCI 4.2.1"
 ```
 
-## Why PatchPilot?
+## Why this exists
 
-Security scanners find everything. Developers fix nothing — because 200 CVEs with no context is just noise.
+Most vulnerability tools sit in one of two worlds:
 
-PatchPilot sits between your scanner and your team. It answers the question every developer asks: **"Which of these actually matter for MY code?"**
+- **Developer tools** (Trivy, Snyk, Dependabot) speak CVE, CVSS, package versions.
+  They don't know which compliance control each finding affects.
+- **Security tools** (CSPM platforms) speak NIST, CIS, PCI at the posture level.
+  They don't tell a developer *"this CVE in your dependency list breaks
+  control X that your organisation is audited on."*
 
-| What scanners tell you | What PatchPilot tells you |
-|---|---|
-| 200 CVEs sorted by CVSS | 3-5 ranked by reachability + exploitability |
-| "CRITICAL: CVE-2024-xxxxx" | "This is imported in your auth module, actively exploited, patch available — fix today" |
-| Same list every time | Only new/changed findings (with state tracking) |
+For a developer at a bank, health provider, or government agency, the
+question is always the same: *"which of these 200 findings matters for the
+audit next quarter?"*
 
-## Quick Start
+PatchPilot is built to answer that — as an open-source CLI, in your CI pipeline,
+without buying a SaaS platform.
+
+## Install
 
 ```bash
-# Install
-pip install -e .
-
-# Prerequisites: Trivy must be installed
-# macOS: brew install trivy
-# Linux: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
-
-# Scan and triage a project
-patchpilot triage --path ./vulnerable_app --target-name vuln-demo
-
-# Triage with CI gating (exit code 1 if critical findings)
-patchpilot triage --path ./app --target-name myapp --fail-on critical
-
-# Generate AI-enhanced report (requires ANTHROPIC_API_KEY)
-export ANTHROPIC_API_KEY=your-key
-patchpilot report --target-name myapp --path ./app
+pip install patchpilot
 ```
 
-## What It Does
+Requires Python 3.9+ and [Trivy](https://aquasecurity.github.io/trivy/).
 
-```
-patchpilot triage --path ./vulnerable_app --target-name demo --top 5
+## Quick start
 
-[triage]
-  Total findings: 10
-  Priority breakdown: 2 critical, 3 high, 4 medium, 1 low, 0 noise
+```bash
+# Run the full triage pipeline against a repo
+patchpilot triage --path ./my-project
 
-  Top 5 action items:
+# Filter to only findings that break PCI DSS 4.0
+patchpilot triage --path ./my-project --framework pci-dss
 
-    #1 [CRITICAL] CVE-2024-34069 (score: 87)
-       Werkzeug debugger vulnerable to remote code execution
-       Action: Upgrade werkzeug from 2.0.0 to >= 3.0.3
-       Effort: complex
-
-    #2 [CRITICAL] CVE-2023-30861 (score: 72)
-       Flask session cookie disclosure
-       Action: Upgrade flask from 2.0.0 to >= 2.3.2
-       Effort: moderate
-
-    #3 [HIGH] CVE-2023-50447 (score: 68)
-       Pillow arbitrary code execution
-       Action: Upgrade pillow from 8.0.0 to >= 10.2.0
-       Effort: complex
-    ...
+# Fail CI if any finding breaks a NIST control
+patchpilot triage --path ./my-project --framework nist-800-53 --fail-on any
 ```
 
-## How It Works
+Example output:
 
-PatchPilot uses a **deterministic, weighted scoring model** — not AI guesswork:
+```
+[triage]  12 findings after enrichment
 
-| Signal | What It Measures | Weight |
-|--------|-----------------|--------|
-| **Reachability** | Is the package actually imported in your code? | 25% |
-| **EPSS** | Probability of exploitation in next 30 days | 15% |
-| **KEV** | Is it in CISA's Known Exploited Vulnerabilities list? | 15% |
-| **Severity/CVSS** | How bad is it if exploited? | 20% |
-| **Fix available** | Can you actually fix it right now? | 15% |
-| **Direct dependency** | Your dep or a transitive one? | 10% |
+  #1  CVE-2023-50447  Pillow arbitrary code execution   score: 82
+      Upgrade pillow >= 10.2.0
+      Compliance impact:
+        NIST 800-53:  SI-2, SI-3
+        CIS:          5.1, 5.2
+        PCI DSS 4.0:  6.3.3
 
-Reachability is the core differentiator: a CVSS 9.8 in an unused transitive dependency is noise. A CVSS 7.0 in your auth module is urgent.
+  #2  CVE-2024-34069  Werkzeug debugger RCE             score: 76
+      Upgrade werkzeug >= 3.0.3
+      Compliance impact:
+        NIST 800-53:  AC-6, SC-8
+        PCI DSS 4.0:  7.2.1
+```
+
+## How findings are scored
+
+Deterministic weighted model. No LLM guesswork in the scoring path.
+
+| Signal          | What it measures                                             | Weight |
+|-----------------|--------------------------------------------------------------|--------|
+| CVSS severity   | How bad if exploited                                         | 25%    |
+| EPSS            | Probability of exploitation in next 30 days (FIRST.org)      | 15%    |
+| KEV             | Listed in CISA Known Exploited Vulnerabilities catalog       | 15%    |
+| Compliance hit  | Number of controls this finding breaks, weighted by framework| 20%    |
+| Usage signal    | Package declared in project's dependency manifest            | 15%    |
+| Fix available   | Patch version exists                                         | 10%    |
+
+**Note on "usage signal":** PatchPilot currently checks whether the vulnerable
+package is declared in your project's manifest (`pyproject.toml`,
+`package.json`, `requirements.txt`, `Gemfile`). It is not a call-graph
+reachability analysis. A declared-but-unused dependency still gets surfaced;
+a transitive-only dependency is deprioritised. Future versions may add
+deeper analysis.
+
+## Compliance mappings
+
+Mappings live as JSON files under `mappings/patterns/` and are editable, reviewable,
+and PR-able. Each pattern links a vulnerable package, config, or vulnerability
+class to the public compliance controls it affects.
+
+Supported frameworks in v1:
+
+| Framework                      | Source                                          |
+|--------------------------------|-------------------------------------------------|
+| NIST SP 800-53 Rev 5           | nist.gov                                        |
+| CIS Controls v8 / Benchmarks   | cisecurity.org                                  |
+| PCI DSS 4.0                    | pcisecuritystandards.org                        |
+| ISO/IEC 27001:2022 Annex A     | iso.org (control IDs only — non-copyrightable)  |
+
+See [`mappings/README.md`](mappings/README.md) for schema, examples, and how to
+contribute new mappings.
 
 ## Commands
 
-| Command | What It Does |
-|---------|-------------|
-| `patchpilot scan` | Run Trivy scanner, produce summary.json |
-| `patchpilot triage` | Full pipeline: scan → context → enrich → score → rank |
-| `patchpilot report` | AI-enhanced security report from triage results |
-| `patchpilot analyze` | Understand repo structure and security posture (coming soon) |
-| `patchpilot plan` | Secure implementation plan for a feature (coming soon) |
-| `patchpilot review` | Security review of PR changes (coming soon) |
+| Command              | Purpose                                                     |
+|----------------------|-------------------------------------------------------------|
+| `patchpilot scan`    | Run Trivy, produce normalised `summary.json`                |
+| `patchpilot triage`  | Full pipeline: scan → enrich → map to controls → rank       |
 
-## Recurring Workflows
+## CI integration
 
-Set up PatchPilot to run automatically — weekly digests as GitHub issues, PR-gated triage, or both. See [docs/recurring-workflows.md](docs/recurring-workflows.md) for full setup guide.
+Minimal example — GitHub Actions:
 
-```bash
-# Copy workflow templates to your repo
-cp .github/workflows/patchpilot-weekly.yml <your-repo>/.github/workflows/
-cp .github/workflows/patchpilot-pr.yml <your-repo>/.github/workflows/
+```yaml
+- name: PatchPilot triage
+  run: |
+    pip install patchpilot
+    patchpilot triage --path . --framework pci-dss --fail-on any
 ```
 
-## Plugin Architecture
+Exit codes:
+- `0` — no findings match the configured fail threshold
+- `1` — at least one finding above threshold (blocks the build)
+- `2` — scanner or mapping error
 
-PatchPilot is extensible through four plugin types:
-
-| Plugin Type | What It Does | Built-in |
-|------------|-------------|----------|
-| Scanner Adapter | Normalize scanner output | Trivy |
-| Enrichment Plugin | Add context to findings | EPSS, KEV, fix availability |
-| Prioritization Strategy | Score and rank findings | Default weighted scorer |
-| Output Formatter | Format results | Markdown, JSON |
-
-Write your own plugins for Grype, Checkov, Semgrep, AWS SecurityHub, CRA compliance, Jira tickets, and more.
-
-## Project Structure
+## Project structure
 
 ```
 patchpilot/
-├── cli.py                          # Click CLI
-├── agent/
-│   ├── models.py                   # Finding dataclass (canonical schema)
-│   ├── context_builder.py          # Repo intelligence (structure, deps, reachability)
-│   ├── prioritizer.py              # Triage engine (scoring + ranked output)
-│   ├── scan.py                     # Scan orchestrator
-│   ├── security_summary.py         # Report generator (Claude)
-│   └── plugins/
-│       ├── base.py                 # Plugin ABCs
-│       ├── scanners/trivy.py       # Trivy adapter
-│       ├── enrichment/epss.py      # EPSS scores
-│       ├── enrichment/kev.py       # CISA KEV catalog
-│       ├── enrichment/fix_availability.py  # Fix effort assessment
-│       └── scoring/default.py      # Weighted scoring model
-├── prompts/                        # System prompts for Claude
-├── docs/                           # Concepts, architecture, glossary
-├── tests/                          # 171 tests
-├── sample_app/                     # Clean FastAPI demo app
-└── vulnerable_app/                 # Intentionally vulnerable demo app
+  cli.py                       — Click CLI entry point
+  agent/
+    models.py                  — canonical Finding dataclass
+    scan.py                    — scan orchestration
+    prioritizer.py             — scoring + ranked output
+    plugins/
+      scanners/trivy.py        — Trivy adapter
+      enrichment/epss.py       — FIRST.org EPSS lookup
+      enrichment/kev.py        — CISA KEV catalog lookup
+      enrichment/compliance.py — load mappings + attach controls to findings
+      scoring/default.py       — deterministic weighted scorer
+  mappings/
+    schema.json                — JSON Schema for mapping patterns
+    patterns/*.json            — public compliance control mappings
+    README.md                  — mapping contribution guide
+  tests/                       — pytest suite
 ```
 
-## Requirements
+## Status
 
-- Python >= 3.9
-- [Trivy](https://aquasecurity.github.io/trivy/) (vulnerability scanner)
-- `ANTHROPIC_API_KEY` (optional — only for AI-enhanced reports)
-
-## Development
-
-```bash
-# Install in development mode
-pip install -e ".[dev]"
-
-# Run tests
-pytest tests/ -v
-
-# Run triage on the vulnerable demo app
-patchpilot triage --path ./vulnerable_app --target-name vuln-demo --top 5
-```
+Early open-source release. The core triage + compliance mapping pipeline is
+stable and covered by tests. Mapping coverage is deliberately narrow in v1 —
+contributions welcome.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) (coming soon). In short: for new compliance
+mappings, submit a PR adding a JSON file under `mappings/patterns/` that follows
+the schema. For scanner adapters or enrichment sources, open an issue first so
+we can discuss scope.

@@ -1,0 +1,23 @@
+{
+  "pattern_id": "PP-0010",
+  "name": "curl in base image below 8.4.0 (CVE-2023-38545 class)",
+  "description": "curl versions below 8.4.0 are affected by the SOCKS5 heap buffer overflow and related issues.",
+  "weakness_class": "CWE-122",
+  "match": {
+    "cve_ids": ["CVE-2023-38545", "CVE-2023-38546"],
+    "package": "curl",
+    "ecosystem": "os",
+    "version_below": "8.4.0"
+  },
+  "controls": {
+    "nist_800_53_rev5": ["SI-2", "SC-8", "CM-2"],
+    "cis_controls_v8": ["7.3", "16.13"],
+    "pci_dss_4_0": ["6.3.3", "11.3.1"],
+    "iso_27001_2022": ["A.8.8", "A.8.9"]
+  },
+  "rationale": "Widely-used outbound HTTP tooling with a memory-corruption CVE. NIST CM-2 baseline configuration includes the base image; SI-2 requires timely remediation. PCI DSS 6.3.3 requires critical patches within one month.",
+  "remediation_priority": "high",
+  "references": [
+    "https://curl.se/docs/CVE-2023-38545.html"
+  ]
+}

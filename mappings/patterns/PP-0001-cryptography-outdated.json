@@ -1,0 +1,24 @@
+{
+  "pattern_id": "PP-0001",
+  "name": "Outdated cryptography library (pypi)",
+  "description": "Python cryptography package below 41.0.0 lacks modern cipher enforcement and has multiple known CVEs affecting TLS and certificate handling.",
+  "weakness_class": "CWE-327",
+  "match": {
+    "package": "cryptography",
+    "ecosystem": "pypi",
+    "version_below": "41.0.0"
+  },
+  "controls": {
+    "nist_800_53_rev5": ["SC-8", "SC-13", "SC-23"],
+    "cis_controls_v8": ["3.10"],
+    "pci_dss_4_0": ["4.2.1", "4.2.2"],
+    "iso_27001_2022": ["A.8.24"],
+    "owasp_asvs_v4": ["6.2.2", "9.1.2"]
+  },
+  "rationale": "NIST SC-8 and SC-13 require protected transmission and approved cryptographic protection. CIS v8 3.10 requires encryption of data in transit. PCI DSS 4.2.1/4.2.2 require strong cryptography over public networks and trusted certificate chains. An outdated cryptography library cannot reliably enforce these.",
+  "remediation_priority": "high",
+  "references": [
+    "https://cryptography.io/en/latest/changelog/",
+    "https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final"
+  ]
+}
