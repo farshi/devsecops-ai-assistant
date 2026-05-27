@@ -1,6 +1,7 @@
 """PatchPilot configuration — loads .patchpilot/config.yaml."""
 
 import os
+from typing import Optional
 
 DEFAULT_CONFIG = {
     "severity_threshold": None,     # None = show all, or "high" = only high+critical
@@ -63,7 +64,7 @@ def load_config(path: str = ".") -> dict:
     return config
 
 
-def normalize_llm_provider(provider: str | None) -> str:
+def normalize_llm_provider(provider: Optional[str]) -> str:
     """Return a supported LLM provider name."""
     value = (provider or DEFAULT_CONFIG["llm_provider"]).strip().lower()
     if value == "gpt":
@@ -73,7 +74,7 @@ def normalize_llm_provider(provider: str | None) -> str:
     return DEFAULT_CONFIG["llm_provider"]
 
 
-def resolve_llm_provider(config: dict | None = None) -> str:
+def resolve_llm_provider(config: Optional[dict] = None) -> str:
     """Resolve provider from env first, then config, then default."""
     env_provider = os.environ.get("PATCHPILOT_LLM_PROVIDER")
     if env_provider:
