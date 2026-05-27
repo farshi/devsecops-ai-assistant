@@ -44,7 +44,8 @@ scanner output and engineering workflow:
 - ranks what to fix first with a deterministic scoring model
 - produces developer-ready action items, audit trails, PR comments, digests, and
   portfolio rollups
-- optionally uses AI to explain findings, generate plans, and summarise risk
+- optionally uses AI to explain findings, review code changes, and summarise
+  risk in security reports
 
 The core security decision path is deterministic and testable. AI is used around
 the workflow, not as an opaque risk engine.
@@ -144,7 +145,7 @@ and how to contribute new mappings.
 | `patchpilot scan`       | Run security scanners and normalise findings                |
 | `patchpilot triage`     | Full pipeline: scan → enrich → map to controls → rank       |
 | `patchpilot report`     | Generate a security report from scan or triage output       |
-| `patchpilot plan`       | Generate a secure implementation plan for a task            |
+| `patchpilot plan`       | Preview the secure-planning workflow; handler is not wired  |
 | `patchpilot review`     | Review code changes for security issues                    |
 | `patchpilot audit`      | Show triage decision history for compliance evidence        |
 | `patchpilot digest`     | Produce a weekly vulnerability triage digest                |
