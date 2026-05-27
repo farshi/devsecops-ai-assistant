@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "patchpilot"
-version = "0.7.0"
+version = "0.8.0"
 description = "CVE triage that speaks compliance — ranks findings by NIST / CIS / PCI / ISO control impact, not just CVSS."
 readme = "README.md"
 license = {text = "MIT"}
@@ -43,6 +43,7 @@ validate = [
 ]
 # Optional — only needed for AI-enhanced reports via `patchpilot report`.
 ai = [
+    # OpenAI uses stdlib urllib; no SDK dependency required.
     "anthropic>=0.25.0",
 ]
 dev = [

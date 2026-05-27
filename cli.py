@@ -12,15 +12,15 @@ import os
 from typing import Optional
 
 import click
-from agent.utils import timestamp, slugify, check_trivy_installed
-
-
-# ---------------------------------------------------------------------------
-# Output path helper
-# ---------------------------------------------------------------------------
-
-def output_path(folder: str, target_slug: str, suffix: str) -> str:
-    return f"{folder}/{target_slug}_{timestamp()}{suffix}"
+from agent.utils import (
+    ensure_reports_dir,
+    report_glob,
+    find_report_matches,
+    report_path,
+    timestamp,
+    slugify,
+    check_trivy_installed,
+)
 
 
 def _derive_target_name(path: Optional[str], explicit: Optional[str]) -> str:
@@ -55,7 +55,7 @@ def _derive_target_name(path: Optional[str], explicit: Optional[str]) -> str:
 PROFILE_SCANNERS = {
     "quick":    ["trivy_fs"],
     "standard": ["trivy_fs", "checkov"],
-    "full":     ["trivy_fs", "checkov", "semgrep", "gitleaks"],
+    "full":     ["trivy_fs", "checkov", "semgrep", "gitleaks", "sonar"],
 }
 
 PROFILE_NOTES = {
@@ -88,7 +88,7 @@ def analyze(path, target_name, dry_run):
     """Understand a project's structure and security posture."""
     target_name = _derive_target_name(path, target_name)
     target_slug = slugify(target_name)
-    out = output_path("analysis", target_slug, ".md")
+    out = report_path(path, f"{target_slug}_analysis_{timestamp()}.md")
 
     click.echo("[analyze]")
     click.echo(f"  target-name : {target_name}  (slug: {target_slug})")
@@ -100,8 +100,8 @@ def analyze(path, target_name, dry_run):
         click.echo("")
         click.echo("  Would run:")
         click.echo(f"    1. context_builder({path}) → context.json")
-        click.echo(f"    2. prompts/analyze.md + context.json → Claude")
-        click.echo(f"    3. Claude response → {out}")
+        click.echo(f"    2. prompts/analyze.md + context.json → selected LLM")
+        click.echo(f"    3. LLM response → {out}")
         return
 
     # TODO: call agent.analyze.run(path, target_slug)
@@ -126,14 +126,15 @@ def scan(path, target_name, profile, dry_run):
     target_slug = slugify(target_name)
     scanners    = PROFILE_SCANNERS[profile]
     date        = timestamp()
-    out_files   = [f"reports/{target_slug}_{s}_{date}.json" for s in scanners]
-    summary     = f"reports/{target_slug}_summary_{date}.json"
+    out_files   = [report_path(path, f"{target_slug}_{s}_{date}.json") for s in scanners]
+    summary     = report_path(path, f"{target_slug}_summary_{date}.json")
 
     click.echo("[scan]")
     click.echo(f"  target-name : {target_name}  (slug: {target_slug})")
     click.echo(f"  path        : {path}")
     click.echo(f"  profile     : {profile}  ({PROFILE_NOTES[profile]})")
     click.echo(f"  scanners    : {', '.join(scanners)}")
+    click.echo(f"  reports     : {ensure_reports_dir(path)}")
     click.echo(f"  dry-run     : {dry_run}")
 
     if dry_run:
@@ -141,7 +142,7 @@ def scan(path, target_name, profile, dry_run):
         click.echo("  Would run:")
         for i, (scanner, out_file) in enumerate(zip(scanners, out_files), 1):
             click.echo(f"    {i}. {scanner} → {out_file}")
-        click.echo(f"    {len(scanners)+1}. parsers → {summary}  (Claude reads this)")
+        click.echo(f"    {len(scanners)+1}. parsers → {summary}  (LLM report can read this)")
         return
 
     if not check_trivy_installed():
@@ -175,9 +176,15 @@ def report(target_name, path, top, dry_run):
     With --path: uses the triage pipeline for a prioritized action plan.
     Without --path: uses raw summary for a traditional security report.
     """
+    if path:
+        target_name = _derive_target_name(path, target_name)
+    elif not target_name:
+        raise click.UsageError("--target-name is required when --path is not provided.")
+
     target_slug  = slugify(target_name)
-    summary_glob = f"reports/{target_slug}_summary_*.json"
-    out          = output_path("reports", target_slug, "_security-report.md")
+    report_root = path or "."
+    summary_glob = report_glob(report_root, f"{target_slug}_summary_*.json")
+    out          = report_path(report_root, f"{target_slug}_security-report_{timestamp()}.md")
 
     click.echo("[report]")
     click.echo(f"  target-name : {target_name}  (slug: {target_slug})")
@@ -197,10 +204,10 @@ def report(target_name, path, top, dry_run):
         click.echo(f"    1. load {summary_glob} (latest)")
         if path:
             click.echo(f"    2. run_triage({path}, summary, top={top}) → ranked findings")
-            click.echo(f"    3. prompts/security_summary.md + triage → Claude")
+            click.echo(f"    3. prompts/security_summary.md + triage → selected LLM")
         else:
-            click.echo(f"    2. prompts/security_summary.md + summary → Claude")
-        click.echo(f"    {3 if path else 3}. Claude response → {out}")
+            click.echo(f"    2. prompts/security_summary.md + summary → selected LLM")
+        click.echo(f"    {4 if path else 3}. LLM response → {out}")
         return
 
     from agent import security_summary
@@ -208,7 +215,7 @@ def report(target_name, path, top, dry_run):
         if path:
             report_file = security_summary.run_with_triage(target_name, target_slug, path, top)
         else:
-            report_file = security_summary.run(target_name, target_slug)
+            report_file = security_summary.run(target_name, target_slug, report_root)
         click.echo(f"\n  report written → {report_file}")
     except (FileNotFoundError, RuntimeError) as exc:
         raise click.ClickException(str(exc))
@@ -285,6 +292,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
     click.echo(f"  profile     : {profile}")
     click.echo(f"  scan        : {'yes' if scan else 'no (use existing summary)'}")
     click.echo(f"  enhance     : {'yes (LLM narratives)' if enhance else 'no'}")
+    click.echo(f"  reports     : {ensure_reports_dir(path)}")
     click.echo(f"  dry-run     : {dry_run}")
 
     if dry_run:
@@ -294,10 +302,10 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         click.echo(f"    2. build context (repo structure, deps, reachability)")
         click.echo(f"    3. enrich findings (EPSS, KEV, fix availability)")
         click.echo(f"    4. score and rank findings")
-        click.echo(f"    5. output top {top} action items")
+        click.echo(f"    5. output top {top} action items to {ensure_reports_dir(path)}")
         step = 6
         if enhance:
-            click.echo(f"    {step}. add AI-generated explanations (requires ANTHROPIC_API_KEY)")
+            click.echo(f"    {step}. add AI-generated explanations (requires OPENAI_API_KEY or ANTHROPIC_API_KEY)")
             step += 1
         if create_issues:
             click.echo(f"    {step}. create GitHub Issues for top findings (requires gh CLI)")
@@ -340,8 +348,8 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         click.echo(f"        summary → {summary_path}")
     else:
         # Find latest existing summary
-        pattern = f"reports/{target_slug}_summary_*.json"
-        matches = sorted(glob.glob(pattern))
+        pattern = report_glob(path, f"{target_slug}_summary_*.json")
+        matches = find_report_matches(path, f"{target_slug}_summary_*.json")
         if not matches and not sarif_path:
             raise click.ClickException(
                 f"No summary found for '{target_name}'. Run with --scan first or provide --sarif."
@@ -351,8 +359,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
             click.echo(f"\n  [1/5] Using existing summary: {summary_path}")
         else:
             # SARIF-only workflow: create minimal summary
-            summary_path = f"reports/{target_slug}_summary_{timestamp()}.json"
-            os.makedirs("reports", exist_ok=True)
+            summary_path = report_path(path, f"{target_slug}_summary_{timestamp()}.json")
             with open(summary_path, "w") as f:
                 json.dump({
                     "target_name": target_name,
@@ -409,14 +416,13 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
     markdown = result["markdown"]
 
     # Save markdown report
-    os.makedirs("reports", exist_ok=True)
     triage_ts = timestamp()
-    report_file = f"reports/{target_slug}_triage_{triage_ts}.md"
+    report_file = report_path(path, f"{target_slug}_triage_{triage_ts}.md")
     with open(report_file, "w") as f:
         f.write(markdown)
 
     # Save JSON triage data
-    json_file = f"reports/{target_slug}_triage_{triage_ts}.json"
+    json_file = report_path(path, f"{target_slug}_triage_{triage_ts}.json")
     with open(json_file, "w") as f:
         json.dump(result["triage"], f, indent=2)
 
@@ -513,7 +519,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
 
         cra_doc = CRADisclosureFormatter().format(all_findings, ctx)
-        cra_file = f"reports/{target_slug}_cra-disclosure_{triage_ts}.md"
+        cra_file = report_path(path, f"{target_slug}_cra-disclosure_{triage_ts}.md")
         with open(cra_file, "w") as f:
             f.write(cra_doc)
         click.echo(f"    cra      → {cra_file}")
@@ -528,7 +534,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
 
         sbom_doc = CycloneDXFormatter().format(all_findings, ctx)
-        sbom_file = f"reports/{target_slug}_sbom_{triage_ts}.json"
+        sbom_file = report_path(path, f"{target_slug}_sbom_{triage_ts}.json")
         with open(sbom_file, "w") as f:
             f.write(sbom_doc)
         click.echo(f"    cyclonedx → {sbom_file}")
@@ -543,7 +549,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
 
         spdx_doc = SPDXFormatter().format(all_findings, ctx)
-        spdx_file = f"reports/{target_slug}_spdx_{triage_ts}.json"
+        spdx_file = report_path(path, f"{target_slug}_spdx_{triage_ts}.json")
         with open(spdx_file, "w") as f:
             f.write(spdx_doc)
         click.echo(f"    spdx     → {spdx_file}")
@@ -558,7 +564,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
 
         soc2_doc = SOC2ComplianceFormatter().format(all_findings, ctx)
-        soc2_file = f"reports/{target_slug}_soc2_{triage_ts}.md"
+        soc2_file = report_path(path, f"{target_slug}_soc2_{triage_ts}.md")
         with open(soc2_file, "w") as f:
             f.write(soc2_doc)
         click.echo(f"    soc2     → {soc2_file}")
@@ -573,7 +579,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
 
         iso_doc = ISO27001ComplianceFormatter().format(all_findings, ctx)
-        iso_file = f"reports/{target_slug}_iso27001_{triage_ts}.md"
+        iso_file = report_path(path, f"{target_slug}_iso27001_{triage_ts}.md")
         with open(iso_file, "w") as f:
             f.write(iso_doc)
         click.echo(f"    iso27001 → {iso_file}")
@@ -588,7 +594,7 @@ def triage(path, target_name, top, profile, scan, dry_run, fail_on, enhance, out
         all_findings = [_finding_from_dict(fd) for fd in ctx.get("findings", [])]
 
         exec_doc = ExecutiveSummaryFormatter().format(all_findings, ctx)
-        exec_file = f"reports/{target_slug}_executive_{triage_ts}.md"
+        exec_file = report_path(path, f"{target_slug}_executive_{triage_ts}.md")
         with open(exec_file, "w") as f:
             f.write(exec_doc)
         click.echo(f"    executive → {exec_file}")
@@ -925,9 +931,7 @@ def digest(path, target_name, output_json, days, pr_comment):
       patchpilot digest --path ./app --target-name myapp --days 14
       patchpilot digest --path ./app --target-name myapp --json
     """
-    import os
     from agent.digest import generate_digest, format_digest_json
-    from agent.utils import slugify, timestamp as ts
 
     result = generate_digest(path, target_name, days=days)
 
@@ -947,12 +951,10 @@ def digest(path, target_name, output_json, days, pr_comment):
     # Save report
     target_name = _derive_target_name(path, target_name)
     target_slug = slugify(target_name)
-    report_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
-    os.makedirs(report_dir, exist_ok=True)
-    report_path = os.path.join(report_dir, f"{target_slug}_digest_{ts()}.{ext}")
-    with open(report_path, "w") as f:
+    digest_path = report_path(path, f"{target_slug}_digest_{timestamp()}.{ext}")
+    with open(digest_path, "w") as f:
         f.write(output)
-    click.echo(f"\n  Report saved → {report_path}")
+    click.echo(f"\n  Report saved → {digest_path}")
 
     # PR comment
     if pr_comment:
@@ -990,7 +992,6 @@ def trends(path, output_json):
         format_trend_report_markdown,
         format_trend_report_json,
     )
-    from agent.utils import slugify, timestamp as ts
 
     history = load_history(path)
     snapshots = history.get("snapshots", [])
@@ -1018,12 +1019,10 @@ def trends(path, output_json):
 
     # Save report
     target_slug = slugify(os.path.basename(os.path.abspath(path)))
-    report_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
-    os.makedirs(report_dir, exist_ok=True)
-    report_path = os.path.join(report_dir, f"{target_slug}_trends_{ts()}.{ext}")
-    with open(report_path, "w") as f:
+    trends_path = report_path(path, f"{target_slug}_trends_{timestamp()}.{ext}")
+    with open(trends_path, "w") as f:
         f.write(output)
-    click.echo(f"\n  Report saved → {report_path}")
+    click.echo(f"\n  Report saved → {trends_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -1053,8 +1052,8 @@ def plan(path, task, target_name, dry_run):
         click.echo("")
         click.echo("  Would run:")
         click.echo(f"    1. context_builder({path}) → context.json")
-        click.echo(f"    2. prompts/plan.md + context.json + task → Claude")
-        click.echo(f"    3. Claude response → {out}")
+        click.echo(f"    2. prompts/plan.md + context.json + task → selected LLM")
+        click.echo(f"    3. LLM response → {out}")
         return
 
     # TODO: call agent.plan.run(path, task, target_slug)
@@ -1096,8 +1095,8 @@ def review(path, target_name, mode, branch, dry_run):
 
     branch_slug  = slugify(branch) if branch else None
     out_suffix   = f"_{branch_slug or mode or 'workdir'}_{timestamp()}.md"
-    out          = f"reviews/{target_slug}{out_suffix}"
-    summary_glob = f"reports/{target_slug}_summary_*.json"
+    out          = report_path(path, f"{target_slug}{out_suffix}")
+    summary_glob = report_glob(path, f"{target_slug}_summary_*.json")
 
     click.echo("[review]")
     click.echo(f"  target-name : {target_name}  (slug: {target_slug})")
@@ -1112,8 +1111,8 @@ def review(path, target_name, mode, branch, dry_run):
         click.echo(f"    1. context_builder({path}) → context.json")
         click.echo(f"    2. load {summary_glob} (latest, if available)")
         click.echo(f"    3. collect diff  [{mode_label}]")
-        click.echo(f"    4. prompts/review.md + context + diff + summary → Claude")
-        click.echo(f"    5. Claude response → {out}")
+        click.echo(f"    4. prompts/review.md + context + diff + summary → selected LLM")
+        click.echo(f"    5. LLM response → {out}")
         return
 
     from agent import review as review_agent
@@ -1124,8 +1123,7 @@ def review(path, target_name, mode, branch, dry_run):
 
     # Save review output
     import os as _os
-    _os.makedirs("reviews", exist_ok=True)
-    out = f"reviews/{target_slug}{out_suffix}"
+    out = report_path(path, f"{target_slug}{out_suffix}")
     with open(out, "w") as f:
         f.write(f"# Security Review — {target_name}\n\n")
         f.write(f"**Verdict: {result['verdict']}**\n\n")

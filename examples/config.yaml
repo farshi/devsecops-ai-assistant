@@ -17,8 +17,9 @@ ignore_packages:
 top_n: 5
 
 # LLM provider for enhanced reports
-# Options: claude (default)
-llm_provider: claude
+# Options: openai (default), claude
+# Can also be overridden with PATCHPILOT_LLM_PROVIDER=claude
+llm_provider: openai
 
 # Reachability analysis settings
 reachability:

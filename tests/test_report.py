@@ -5,8 +5,10 @@ Tests for agent/security_summary.py — report generation logic.
 import json
 import os
 import pytest
+from click.testing import CliRunner
 from unittest.mock import patch, mock_open
 
+from cli import cli
 from agent import security_summary
 
 
@@ -36,8 +38,45 @@ def test_no_summary_file_raises(tmp_path, monkeypatch):
 
 
 def test_missing_api_key_raises(tmp_path, monkeypatch):
-    """run() raises RuntimeError when ANTHROPIC_API_KEY is not set."""
+    """run() raises RuntimeError when OPENAI_API_KEY is not set by default."""
     monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("PATCHPILOT_LLM_PROVIDER", raising=False)
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    summary_file = reports_dir / "test-app_summary_2026-03-27.json"
+    summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
+
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        security_summary.run("Test App", "test-app")
+
+
+def test_report_written_on_success(tmp_path, monkeypatch):
+    """run() writes a markdown report file and returns its path."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    summary_file = reports_dir / "test-app_summary_2026-03-27.json"
+    summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
+
+    with patch("agent.llm_client.call", return_value="## Risk Overview\nNo findings."):
+        out_path = security_summary.run("Test App", "test-app")
+
+    assert os.path.exists(out_path)
+    content = open(out_path).read()
+    assert "# Security Report — Test App" in content
+    assert "No findings." in content
+
+
+def test_report_uses_openai_provider_from_env(tmp_path, monkeypatch):
+    """run() can use OpenAI when PATCHPILOT_LLM_PROVIDER=openai."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATCHPILOT_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     reports_dir = tmp_path / "reports"
@@ -45,27 +84,32 @@ def test_missing_api_key_raises(tmp_path, monkeypatch):
     summary_file = reports_dir / "test-app_summary_2026-03-27.json"
     summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
 
-    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+    captured = {}
+
+    def fake_call(system_prompt, user_message, provider="claude"):
+        captured["provider"] = provider
+        return "## Risk Overview\nNo findings."
+
+    with patch("agent.llm_client.call", side_effect=fake_call):
         security_summary.run("Test App", "test-app")
 
+    assert captured["provider"] == "openai"
 
-def test_report_written_on_success(tmp_path, monkeypatch):
-    """run() writes a markdown report file and returns its path."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir()
-    summary_file = reports_dir / "test-app_summary_2026-03-27.json"
-    summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
+def test_report_cli_derives_target_name_from_path(tmp_path):
+    """report --path derives target-name instead of crashing on None."""
+    runner = CliRunner()
+    app_dir = tmp_path / "my-app"
+    app_dir.mkdir()
 
-    with patch("agent.claude_client.call", return_value="## Risk Overview\nNo findings."):
-        out_path = security_summary.run("Test App", "test-app")
+    with patch("agent.security_summary.run_with_triage", return_value="reports/my-app.md"):
+        result = runner.invoke(
+            cli,
+            ["report", "--path", str(app_dir), "--dry-run"],
+        )
 
-    assert os.path.exists(out_path)
-    content = open(out_path).read()
-    assert "# Security Report — Test App" in content
-    assert "No findings." in content
+    assert result.exit_code == 0
+    assert "target-name : my-app" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +131,7 @@ MOCK_TRIAGE = {
 def test_run_with_triage_writes_report(tmp_path, monkeypatch):
     """run_with_triage() writes a markdown report file and returns its path."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
@@ -104,10 +148,10 @@ def test_run_with_triage_writes_report(tmp_path, monkeypatch):
     assert "Fix it." in content
 
 
-def test_run_with_triage_sends_triage_to_claude(tmp_path, monkeypatch):
-    """run_with_triage() sends a user_message containing 'triage' and 'instructions' to Claude."""
+def test_run_with_triage_sends_triage_to_llm(tmp_path, monkeypatch):
+    """run_with_triage() sends a user_message containing 'triage' and 'instructions' to the LLM."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
@@ -129,9 +173,10 @@ def test_run_with_triage_sends_triage_to_claude(tmp_path, monkeypatch):
 
 
 def test_run_with_triage_missing_api_key(tmp_path, monkeypatch):
-    """run_with_triage() raises RuntimeError when ANTHROPIC_API_KEY is not set."""
+    """run_with_triage() raises RuntimeError when OPENAI_API_KEY is not set by default."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
@@ -139,5 +184,33 @@ def test_run_with_triage_missing_api_key(tmp_path, monkeypatch):
     summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
 
     with patch("agent.prioritizer.run_triage", return_value=MOCK_TRIAGE), \
-         pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+         pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         security_summary.run_with_triage("Test App", "test-app", str(tmp_path))
+
+
+def test_run_with_triage_uses_openai_provider_from_config(tmp_path, monkeypatch):
+    """run_with_triage() can use OpenAI from .patchpilot/config.yaml."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    summary_file = reports_dir / "test-app_summary_2026-03-27.json"
+    summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
+
+    config_dir = tmp_path / ".patchpilot"
+    config_dir.mkdir()
+    (config_dir / "config.yaml").write_text("llm_provider: openai\n")
+
+    captured = {}
+
+    def fake_call(system_prompt, user_message, provider="claude"):
+        captured["provider"] = provider
+        return "## Action Plan\nFix it."
+
+    with patch("agent.prioritizer.run_triage", return_value=MOCK_TRIAGE), \
+         patch("agent.llm_client.call", side_effect=fake_call):
+        security_summary.run_with_triage("Test App", "test-app", str(tmp_path))
+
+    assert captured["provider"] == "openai"
