@@ -6,7 +6,7 @@ import subprocess
 
 from agent import llm_client
 from agent.context_builder import detect_repo_structure, extract_dependencies
-from agent.config import load_config
+from agent.config import load_config, resolve_llm_provider
 
 
 def run(path: str, target_slug: str, mode: str = None, branch: str = None) -> dict:
@@ -82,7 +82,7 @@ def run(path: str, target_slug: str, mode: str = None, branch: str = None) -> di
     }, indent=2)
 
     # Call LLM
-    provider = config.get("llm_provider", "claude")
+    provider = resolve_llm_provider(config)
 
     api_key_var = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
     if not os.environ.get(api_key_var):

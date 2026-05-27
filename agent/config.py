@@ -6,7 +6,7 @@ DEFAULT_CONFIG = {
     "severity_threshold": None,     # None = show all, or "high" = only high+critical
     "ignore_cves": [],              # List of CVE IDs to suppress
     "ignore_packages": [],          # List of package names to suppress
-    "llm_provider": "claude",       # "claude" or "gpt" (future)
+    "llm_provider": "claude",       # "claude", "openai", or "gpt"
     "top_n": 5,                     # Number of findings to surface
     "reachability": {
         "enabled": True,
@@ -61,6 +61,24 @@ def load_config(path: str = ".") -> dict:
             config[key] = value
 
     return config
+
+
+def normalize_llm_provider(provider: str | None) -> str:
+    """Return a supported LLM provider name."""
+    value = (provider or DEFAULT_CONFIG["llm_provider"]).strip().lower()
+    if value == "gpt":
+        return "openai"
+    if value in ("claude", "openai"):
+        return value
+    return DEFAULT_CONFIG["llm_provider"]
+
+
+def resolve_llm_provider(config: dict | None = None) -> str:
+    """Resolve provider from env first, then config, then default."""
+    env_provider = os.environ.get("PATCHPILOT_LLM_PROVIDER")
+    if env_provider:
+        return normalize_llm_provider(env_provider)
+    return normalize_llm_provider((config or {}).get("llm_provider"))
 
 
 def _parse_simple_yaml(text: str) -> dict:

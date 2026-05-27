@@ -225,10 +225,14 @@ def test_run_triage_enhance_flag():
 
     try:
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
-            with patch("agent.prioritizer.enhance_triage_with_llm", wraps=lambda r, c: r) as mock_enhance:
+            with patch(
+                "agent.prioritizer.enhance_triage_with_llm",
+                wraps=lambda r, c, provider="claude": r,
+            ) as mock_enhance:
                 result = run_triage(".", summary_path, top_n=5, enhance=True)
 
         mock_enhance.assert_called_once()
+        assert mock_enhance.call_args.kwargs["provider"] == "claude"
         # The triage result should still be a valid dict
         assert "triage" in result
         assert "markdown" in result

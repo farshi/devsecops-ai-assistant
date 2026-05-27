@@ -6,6 +6,8 @@ from agent.config import (
     DEFAULT_CONFIG,
     load_config,
     apply_config_filters,
+    normalize_llm_provider,
+    resolve_llm_provider,
     _parse_simple_yaml,
 )
 from agent.models import Finding
@@ -86,6 +88,17 @@ class TestLoadConfig:
         """No .patchpilot directory at all — returns defaults."""
         config = load_config(str(tmp_path))
         assert config == load_config("/nonexistent/path/that/does/not/exist")
+
+
+class TestLlmProviderConfig:
+    def test_normalize_llm_provider_accepts_openai_aliases(self):
+        assert normalize_llm_provider("openai") == "openai"
+        assert normalize_llm_provider("gpt") == "openai"
+        assert normalize_llm_provider("claude") == "claude"
+
+    def test_resolve_llm_provider_env_overrides_config(self, monkeypatch):
+        monkeypatch.setenv("PATCHPILOT_LLM_PROVIDER", "openai")
+        assert resolve_llm_provider({"llm_provider": "claude"}) == "openai"
 
 
 # ---------------------------------------------------------------------------

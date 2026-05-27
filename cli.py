@@ -141,7 +141,7 @@ def scan(path, target_name, profile, dry_run):
         click.echo("  Would run:")
         for i, (scanner, out_file) in enumerate(zip(scanners, out_files), 1):
             click.echo(f"    {i}. {scanner} → {out_file}")
-        click.echo(f"    {len(scanners)+1}. parsers → {summary}  (Claude reads this)")
+        click.echo(f"    {len(scanners)+1}. parsers → {summary}  (LLM report can read this)")
         return
 
     if not check_trivy_installed():
@@ -175,6 +175,11 @@ def report(target_name, path, top, dry_run):
     With --path: uses the triage pipeline for a prioritized action plan.
     Without --path: uses raw summary for a traditional security report.
     """
+    if path:
+        target_name = _derive_target_name(path, target_name)
+    elif not target_name:
+        raise click.UsageError("--target-name is required when --path is not provided.")
+
     target_slug  = slugify(target_name)
     summary_glob = f"reports/{target_slug}_summary_*.json"
     out          = output_path("reports", target_slug, "_security-report.md")
@@ -197,10 +202,10 @@ def report(target_name, path, top, dry_run):
         click.echo(f"    1. load {summary_glob} (latest)")
         if path:
             click.echo(f"    2. run_triage({path}, summary, top={top}) → ranked findings")
-            click.echo(f"    3. prompts/security_summary.md + triage → Claude")
+            click.echo(f"    3. prompts/security_summary.md + triage → selected LLM")
         else:
-            click.echo(f"    2. prompts/security_summary.md + summary → Claude")
-        click.echo(f"    {3 if path else 3}. Claude response → {out}")
+            click.echo(f"    2. prompts/security_summary.md + summary → selected LLM")
+        click.echo(f"    {4 if path else 3}. LLM response → {out}")
         return
 
     from agent import security_summary
@@ -1053,8 +1058,8 @@ def plan(path, task, target_name, dry_run):
         click.echo("")
         click.echo("  Would run:")
         click.echo(f"    1. context_builder({path}) → context.json")
-        click.echo(f"    2. prompts/plan.md + context.json + task → Claude")
-        click.echo(f"    3. Claude response → {out}")
+        click.echo(f"    2. prompts/plan.md + context.json + task → selected LLM")
+        click.echo(f"    3. LLM response → {out}")
         return
 
     # TODO: call agent.plan.run(path, task, target_slug)
@@ -1112,8 +1117,8 @@ def review(path, target_name, mode, branch, dry_run):
         click.echo(f"    1. context_builder({path}) → context.json")
         click.echo(f"    2. load {summary_glob} (latest, if available)")
         click.echo(f"    3. collect diff  [{mode_label}]")
-        click.echo(f"    4. prompts/review.md + context + diff + summary → Claude")
-        click.echo(f"    5. Claude response → {out}")
+        click.echo(f"    4. prompts/review.md + context + diff + summary → selected LLM")
+        click.echo(f"    5. LLM response → {out}")
         return
 
     from agent import review as review_agent

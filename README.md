@@ -78,6 +78,27 @@ patchpilot triage --path ./my-project --framework pci-dss
 patchpilot triage --path ./my-project --fail-on high
 ```
 
+Optional AI features use Claude by default:
+
+```bash
+export ANTHROPIC_API_KEY=...
+patchpilot triage --path ./my-project --enhance
+patchpilot report --path ./my-project --target-name my-project
+patchpilot review --path ./my-project --diff
+```
+
+To use OpenAI instead:
+
+```bash
+export PATCHPILOT_LLM_PROVIDER=openai
+export OPENAI_API_KEY=...
+patchpilot triage --path ./my-project --enhance
+patchpilot report --path ./my-project --target-name my-project
+patchpilot review --path ./my-project --diff
+```
+
+You can also set `llm_provider: openai` in `.patchpilot/config.yaml`.
+
 The project path is the only required flag. Output files are scoped by
 the path's basename unless you pass ``--target-name`` explicitly.
 

@@ -461,6 +461,7 @@ def run_triage(
     save_deadlines(path, updated_deadlines)
 
     if enhance:
-        result = enhance_triage_with_llm(result, ctx)
+        from agent.config import resolve_llm_provider
+        result = enhance_triage_with_llm(result, ctx, provider=resolve_llm_provider(config))
 
     return result

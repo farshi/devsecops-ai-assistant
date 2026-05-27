@@ -1,5 +1,5 @@
 """
-Report generator — loads the latest summary.json for a target and asks Claude
+Report generator — loads the latest summary.json for a target and asks an LLM
 to produce a human-readable security report.
 """
 
@@ -7,7 +7,8 @@ import glob
 import json
 import os
 
-from agent import claude_client
+from agent import llm_client
+from agent.config import load_config, resolve_llm_provider
 from agent.utils import timestamp
 
 
@@ -28,9 +29,17 @@ def _find_latest_summary(target_slug: str) -> str:
     return matches[-1]
 
 
+def _require_llm_key(provider: str) -> None:
+    key_var = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
+    if not os.environ.get(key_var):
+        raise RuntimeError(
+            f"{key_var} not set. Export {key_var} or choose another provider."
+        )
+
+
 def run(target_name: str, target_slug: str) -> str:
     """
-    Load latest summary.json, call Claude, write report to reports/.
+    Load latest summary.json, call configured LLM, write report to reports/.
 
     Returns the path of the written report file.
     """
@@ -41,7 +50,9 @@ def run(target_name: str, target_slug: str) -> str:
     system_prompt = _load_prompt()
     user_message  = json.dumps(summary, indent=2)
 
-    report_text = claude_client.call(system_prompt, user_message)
+    provider = resolve_llm_provider()
+    _require_llm_key(provider)
+    report_text = llm_client.call(system_prompt, user_message, provider=provider)
 
     out_file = f"reports/{target_slug}_security-report_{timestamp()}.md"
     os.makedirs("reports", exist_ok=True)
@@ -57,8 +68,8 @@ def run(target_name: str, target_slug: str) -> str:
 def run_with_triage(target_name: str, target_slug: str, path: str, top_n: int = 5) -> str:
     """Generate a prioritized security report using the triage pipeline.
 
-    Unlike run(), this sends Claude prioritized, context-enriched findings
-    instead of raw scanner output. The report reads like an action plan.
+    Unlike run(), this sends the configured LLM prioritized, context-enriched
+    findings instead of raw scanner output. The report reads like an action plan.
 
     Returns the path of the written report file.
     """
@@ -69,7 +80,7 @@ def run_with_triage(target_name: str, target_slug: str, path: str, top_n: int = 
 
     system_prompt = _load_prompt()
 
-    # Give Claude both structured data and the pre-generated markdown
+    # Give the LLM both structured data and the pre-generated markdown.
     user_message = json.dumps({
         "triage": triage_result["triage"],
         "pre_generated_report": triage_result["markdown"],
@@ -84,12 +95,9 @@ def run_with_triage(target_name: str, target_slug: str, path: str, top_n: int = 
         ),
     }, indent=2)
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not set. Export your Anthropic API key.")
-
-    from agent import llm_client
-    report_text = llm_client.call(system_prompt, user_message, provider="claude")
+    provider = resolve_llm_provider(load_config(path))
+    _require_llm_key(provider)
+    report_text = llm_client.call(system_prompt, user_message, provider=provider)
 
     out_file = f"reports/{target_slug}_security-report_{timestamp()}.md"
     os.makedirs("reports", exist_ok=True)
