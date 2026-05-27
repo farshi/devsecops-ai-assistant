@@ -55,7 +55,7 @@ def _derive_target_name(path: Optional[str], explicit: Optional[str]) -> str:
 PROFILE_SCANNERS = {
     "quick":    ["trivy_fs"],
     "standard": ["trivy_fs", "checkov"],
-    "full":     ["trivy_fs", "checkov", "semgrep", "gitleaks"],
+    "full":     ["trivy_fs", "checkov", "semgrep", "gitleaks", "sonar"],
 }
 
 PROFILE_NOTES = {

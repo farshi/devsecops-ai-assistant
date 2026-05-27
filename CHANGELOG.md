@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.8.0 (2026-05-27)
+
+**SonarQube / SonarCloud support** — pull Sonar findings into compliance-aware triage.
+
+### Features
+- **Sonar scanner adapter** (`agent/plugins/scanners/sonar.py`) — normalises
+  SonarQube/SonarCloud `api/issues/search` issues and `api/hotspots/search`
+  hotspots into canonical Findings. Maps both the legacy (BLOCKER..INFO) and
+  software-quality (HIGH/MEDIUM/LOW) severity scales, issue types
+  (VULNERABILITY / BUG / CODE_SMELL / SECURITY_HOTSPOT), and
+  `projectKey:path` components into `path:line` locations.
+- **Live Sonar REST API runner** (`devsecops/runners/run_sonar.py`) — pulls a
+  project's issues and hotspots over HTTP with token auth (HTTP Basic, token
+  as username), paginated to Sonar's 10k cap, tolerant of servers without the
+  hotspots endpoint. Configured via the standard `SONAR_HOST_URL`,
+  `SONAR_TOKEN`, and `SONAR_PROJECT_KEY` env vars so teams reuse existing CI
+  settings. No new dependencies — stdlib `urllib` only.
+- **Sonar in the `full` scan profile** — `patchpilot scan --profile full`
+  pulls Sonar live when the env vars are set, and skips cleanly when they are
+  not. A pre-fetched export can also be supplied via `PATCHPILOT_SONAR_REPORT`.
+
+### Infrastructure
+- 24 new tests (adapter + runner), full suite green at 818.
+
 ## v0.7.0 (2026-04-15)
 
 **Compliance-aware triage pivot** — every finding now speaks NIST, CIS, PCI, ISO, and OWASP.

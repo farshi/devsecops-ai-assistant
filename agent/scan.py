@@ -83,9 +83,39 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
             findings_by_scanner["gitleaks"] = []
             notes.append(f"gitleaks skipped: {exc}")
 
+    # --- sonar (pulls from the Sonar REST API, or ingests a saved export) ---
+    if "sonar" in scanners:
+        from agent.plugins.scanners.sonar import SonarScannerAdapter
+
+        # Precedence: an explicit pre-fetched export, else a live API pull when
+        # SONAR_HOST_URL / SONAR_TOKEN / SONAR_PROJECT_KEY are configured.
+        saved_report = os.environ.get("PATCHPILOT_SONAR_REPORT")
+        sonar_configured = all(
+            os.environ.get(k) for k in ("SONAR_HOST_URL", "SONAR_TOKEN", "SONAR_PROJECT_KEY")
+        )
+        try:
+            if saved_report and os.path.exists(saved_report):
+                sonar_report = saved_report
+            elif sonar_configured:
+                from devsecops.runners import run_sonar
+                sonar_report = report_path(path, f"{target_slug}_sonar_{date}.json")
+                run_sonar.run(sonar_report)
+            else:
+                raise RuntimeError(
+                    "no Sonar source — set PATCHPILOT_SONAR_REPORT to a saved "
+                    "api/issues/search JSON, or SONAR_HOST_URL/SONAR_TOKEN/"
+                    "SONAR_PROJECT_KEY to pull live"
+                )
+            findings_by_scanner["sonar"] = SonarScannerAdapter().parse(sonar_report)
+            scanners_run.append("sonar")
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            scanners_skipped.append({"scanner": "sonar", "reason": str(exc)})
+            findings_by_scanner["sonar"] = []
+            notes.append(f"sonar skipped: {exc}")
+
     # --- semgrep / other future scanners ---
     for scanner in scanners:
-        if scanner not in ("trivy_fs", "checkov", "gitleaks", "sarif"):
+        if scanner not in ("trivy_fs", "checkov", "gitleaks", "sarif", "sonar"):
             scanners_skipped.append({"scanner": scanner, "reason": "runner not yet implemented"})
             findings_by_scanner[scanner] = []
             notes.append(f"{scanner} skipped: runner not yet implemented")
