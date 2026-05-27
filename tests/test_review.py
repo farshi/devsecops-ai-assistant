@@ -67,7 +67,7 @@ def test_review_missing_api_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with patch("agent.review._get_diff", return_value=("some diff content", ["file1.py"])):
-        with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+        with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
             review.run(".", "test")
 
 

@@ -78,26 +78,35 @@ patchpilot triage --path ./my-project --framework pci-dss
 patchpilot triage --path ./my-project --fail-on high
 ```
 
-Optional AI features use Claude by default:
+PatchPilot stores generated files inside the scanned project:
 
 ```bash
+./my-project/.patchpilot/reports/
+```
+
+Optional AI features use OpenAI by default. PatchPilot auto-loads
+`./my-project/.env`, `./my-project/.env.local`, and `./my-project/.env.dev`
+before looking for API keys:
+
+```bash
+echo 'OPENAI_API_KEY=...' > ./my-project/.env.dev
+patchpilot triage --path ./my-project --enhance
+patchpilot report --path ./my-project --target-name my-project
+patchpilot review --path ./my-project --diff
+```
+
+To use Claude instead:
+
+```bash
+export PATCHPILOT_LLM_PROVIDER=claude
 export ANTHROPIC_API_KEY=...
 patchpilot triage --path ./my-project --enhance
 patchpilot report --path ./my-project --target-name my-project
 patchpilot review --path ./my-project --diff
 ```
 
-To use OpenAI instead:
-
-```bash
-export PATCHPILOT_LLM_PROVIDER=openai
-export OPENAI_API_KEY=...
-patchpilot triage --path ./my-project --enhance
-patchpilot report --path ./my-project --target-name my-project
-patchpilot review --path ./my-project --diff
-```
-
-You can also set `llm_provider: openai` in `.patchpilot/config.yaml`.
+You can also set `llm_provider: claude` or `llm_provider: openai` in
+`.patchpilot/config.yaml`.
 
 The project path is the only required flag. Output files are scoped by
 the path's basename unless you pass ``--target-name`` explicitly.

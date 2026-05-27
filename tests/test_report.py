@@ -38,9 +38,10 @@ def test_no_summary_file_raises(tmp_path, monkeypatch):
 
 
 def test_missing_api_key_raises(tmp_path, monkeypatch):
-    """run() raises RuntimeError when ANTHROPIC_API_KEY is not set."""
+    """run() raises RuntimeError when OPENAI_API_KEY is not set by default."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("PATCHPILOT_LLM_PROVIDER", raising=False)
 
     reports_dir = tmp_path / "reports"
@@ -48,14 +49,14 @@ def test_missing_api_key_raises(tmp_path, monkeypatch):
     summary_file = reports_dir / "test-app_summary_2026-03-27.json"
     summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
 
-    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         security_summary.run("Test App", "test-app")
 
 
 def test_report_written_on_success(tmp_path, monkeypatch):
     """run() writes a markdown report file and returns its path."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
@@ -130,7 +131,7 @@ MOCK_TRIAGE = {
 def test_run_with_triage_writes_report(tmp_path, monkeypatch):
     """run_with_triage() writes a markdown report file and returns its path."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
@@ -147,10 +148,10 @@ def test_run_with_triage_writes_report(tmp_path, monkeypatch):
     assert "Fix it." in content
 
 
-def test_run_with_triage_sends_triage_to_claude(tmp_path, monkeypatch):
-    """run_with_triage() sends a user_message containing 'triage' and 'instructions' to Claude."""
+def test_run_with_triage_sends_triage_to_llm(tmp_path, monkeypatch):
+    """run_with_triage() sends a user_message containing 'triage' and 'instructions' to the LLM."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
@@ -172,9 +173,10 @@ def test_run_with_triage_sends_triage_to_claude(tmp_path, monkeypatch):
 
 
 def test_run_with_triage_missing_api_key(tmp_path, monkeypatch):
-    """run_with_triage() raises RuntimeError when ANTHROPIC_API_KEY is not set."""
+    """run_with_triage() raises RuntimeError when OPENAI_API_KEY is not set by default."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
@@ -182,7 +184,7 @@ def test_run_with_triage_missing_api_key(tmp_path, monkeypatch):
     summary_file.write_text(json.dumps(MINIMAL_SUMMARY))
 
     with patch("agent.prioritizer.run_triage", return_value=MOCK_TRIAGE), \
-          pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+         pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         security_summary.run_with_triage("Test App", "test-app", str(tmp_path))
 
 

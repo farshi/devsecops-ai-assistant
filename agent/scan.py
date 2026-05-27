@@ -6,7 +6,7 @@ import glob
 import json
 import os
 
-from agent.utils import slugify, timestamp
+from agent.utils import report_path, slugify, timestamp
 from devsecops.parsers import parse_trivy, summarize_findings
 from devsecops.runners import run_trivy
 
@@ -19,7 +19,6 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
     """
     target_slug = slugify(target_name)
     date        = timestamp()
-    os.makedirs("reports", exist_ok=True)
 
     findings_by_scanner: dict[str, list] = {}
     scanners_run:        list[str]              = []
@@ -28,7 +27,7 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
 
     # --- trivy_fs ---
     if "trivy_fs" in scanners:
-        raw_file = f"reports/{target_slug}_trivy_fs_{date}.json"
+        raw_file = report_path(path, f"{target_slug}_trivy_fs_{date}.json")
         try:
             raw = run_trivy.run(path, raw_file)
             findings_by_scanner["trivy_fs"] = parse_trivy.parse(raw)
@@ -54,7 +53,7 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
             findings_by_scanner["checkov"] = []
             notes.append(f"checkov skipped: {reason}")
         else:
-            raw_file = f"reports/{target_slug}_checkov_{date}.json"
+            raw_file = report_path(path, f"{target_slug}_checkov_{date}.json")
             try:
                 from devsecops.runners import run_checkov
                 from agent.plugins.scanners.checkov import CheckovScannerAdapter
@@ -70,7 +69,7 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
 
     # --- gitleaks ---
     if "gitleaks" in scanners:
-        raw_file = f"reports/{target_slug}_gitleaks_{date}.json"
+        raw_file = report_path(path, f"{target_slug}_gitleaks_{date}.json")
         try:
             from devsecops.runners import run_gitleaks
             from agent.plugins.scanners.gitleaks import GitleaksScannerAdapter
@@ -103,7 +102,7 @@ def run(path: str, target_name: str, profile: str, scanners: list[str]) -> str:
         notes=notes,
     )
 
-    summary_file = f"reports/{target_slug}_summary_{date}.json"
+    summary_file = report_path(path, f"{target_slug}_summary_{date}.json")
     with open(summary_file, "w") as f:
         json.dump(summary, f, indent=2)
 

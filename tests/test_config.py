@@ -1,5 +1,7 @@
 """Tests for agent/config.py — PatchPilot config loading and filtering."""
 
+import os
+
 import pytest
 
 from agent.config import (
@@ -8,6 +10,7 @@ from agent.config import (
     apply_config_filters,
     normalize_llm_provider,
     resolve_llm_provider,
+    load_env_files,
     _parse_simple_yaml,
 )
 from agent.models import Finding
@@ -46,7 +49,7 @@ class TestLoadConfig:
         assert config["ignore_cves"] == []
         assert config["ignore_packages"] == []
         assert config["top_n"] == 5
-        assert config["llm_provider"] == "claude"
+        assert config["llm_provider"] == "openai"
         assert config["reachability"]["enabled"] is True
         assert config["enrichment"]["epss"] is True
 
@@ -57,7 +60,7 @@ class TestLoadConfig:
         assert config["severity_threshold"] == "high"
         assert config["top_n"] == 3
         # Other defaults intact
-        assert config["llm_provider"] == "claude"
+        assert config["llm_provider"] == "openai"
         assert config["ignore_cves"] == []
 
     def test_load_config_merges_nested(self, tmp_path):
@@ -99,6 +102,23 @@ class TestLlmProviderConfig:
     def test_resolve_llm_provider_env_overrides_config(self, monkeypatch):
         monkeypatch.setenv("PATCHPILOT_LLM_PROVIDER", "openai")
         assert resolve_llm_provider({"llm_provider": "claude"}) == "openai"
+
+    def test_load_env_files_reads_env_dev(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        (tmp_path / ".env.dev").write_text("OPENAI_API_KEY=from-env-dev\n")
+
+        loaded = load_env_files(str(tmp_path))
+
+        assert loaded == [str(tmp_path / ".env.dev")]
+        assert os.environ["OPENAI_API_KEY"] == "from-env-dev"
+
+    def test_load_env_files_keeps_existing_process_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "from-shell")
+        (tmp_path / ".env.dev").write_text("OPENAI_API_KEY=from-env-dev\n")
+
+        load_env_files(str(tmp_path))
+
+        assert os.environ["OPENAI_API_KEY"] == "from-shell"
 
 
 # ---------------------------------------------------------------------------

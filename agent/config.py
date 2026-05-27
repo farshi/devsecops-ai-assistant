@@ -1,13 +1,13 @@
 """PatchPilot configuration — loads .patchpilot/config.yaml."""
 
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 DEFAULT_CONFIG = {
     "severity_threshold": None,     # None = show all, or "high" = only high+critical
     "ignore_cves": [],              # List of CVE IDs to suppress
     "ignore_packages": [],          # List of package names to suppress
-    "llm_provider": "claude",       # "claude", "openai", or "gpt"
+    "llm_provider": "openai",       # "openai", "claude", or "gpt"
     "top_n": 5,                     # Number of findings to surface
     "reachability": {
         "enabled": True,
@@ -20,6 +20,8 @@ DEFAULT_CONFIG = {
     },
 }
 
+ENV_FILE_NAMES = (".env", ".env.local", ".env.dev")
+
 
 def load_config(path: str = ".") -> dict:
     """Load config from .patchpilot/config.yaml, merged with defaults.
@@ -30,6 +32,7 @@ def load_config(path: str = ".") -> dict:
     Returns:
         Merged config dict (user values override defaults).
     """
+    load_env_files(path)
     config = dict(DEFAULT_CONFIG)  # shallow copy of defaults
 
     config_path = os.path.join(path, ".patchpilot", "config.yaml")
@@ -62,6 +65,57 @@ def load_config(path: str = ".") -> dict:
             config[key] = value
 
     return config
+
+
+def load_env_files(path: str = ".") -> list[str]:
+    """Load simple KEY=VALUE entries from project env files.
+
+    Existing process environment variables win. Among files, later files in
+    ENV_FILE_NAMES override earlier files, so .env.dev wins over .env.
+    """
+    initially_set = set(os.environ)
+    loaded_keys = set()
+    loaded_files = []
+
+    for name in ENV_FILE_NAMES:
+        env_path = os.path.join(path, name)
+        if not os.path.isfile(env_path):
+            continue
+        try:
+            with open(env_path) as f:
+                lines = f.readlines()
+        except OSError:
+            continue
+
+        loaded_files.append(env_path)
+        for line in lines:
+            parsed = _parse_env_line(line)
+            if not parsed:
+                continue
+            key, value = parsed
+            if key in initially_set and key not in loaded_keys:
+                continue
+            os.environ[key] = value
+            loaded_keys.add(key)
+
+    return loaded_files
+
+
+def _parse_env_line(line: str) -> Optional[Tuple[str, str]]:
+    """Parse one dotenv-style KEY=VALUE line."""
+    text = line.strip()
+    if not text or text.startswith("#") or "=" not in text:
+        return None
+    if text.startswith("export "):
+        text = text[len("export "):].strip()
+    key, value = text.split("=", 1)
+    key = key.strip()
+    if not key:
+        return None
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        value = value[1:-1]
+    return key, value
 
 
 def normalize_llm_provider(provider: Optional[str]) -> str:

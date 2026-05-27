@@ -43,6 +43,7 @@ validate = [
 ]
 # Optional — only needed for AI-enhanced reports via `patchpilot report`.
 ai = [
+    # OpenAI uses stdlib urllib; no SDK dependency required.
     "anthropic>=0.25.0",
 ]
 dev = [

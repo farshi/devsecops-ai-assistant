@@ -3,13 +3,12 @@ Report generator — loads the latest summary.json for a target and asks an LLM
 to produce a human-readable security report.
 """
 
-import glob
 import json
 import os
 
 from agent import llm_client
 from agent.config import load_config, resolve_llm_provider
-from agent.utils import timestamp
+from agent.utils import find_report_matches, report_path, timestamp
 
 
 def _load_prompt() -> str:
@@ -18,10 +17,10 @@ def _load_prompt() -> str:
         return f.read()
 
 
-def _find_latest_summary(target_slug: str) -> str:
+def _find_latest_summary(target_slug: str, path: str = ".") -> str:
     """Return the path of the most recent summary JSON for *target_slug*."""
-    pattern = f"reports/{target_slug}_summary_*.json"
-    matches = sorted(glob.glob(pattern))
+    pattern = f"{target_slug}_summary_*.json"
+    matches = find_report_matches(path, pattern)
     if not matches:
         raise FileNotFoundError(
             f"No summary file found matching '{pattern}'. Run `scan` first."
@@ -37,13 +36,14 @@ def _require_llm_key(provider: str) -> None:
         )
 
 
-def run(target_name: str, target_slug: str) -> str:
+def run(target_name: str, target_slug: str, path: str = ".") -> str:
     """
     Load latest summary.json, call configured LLM, write report to reports/.
 
     Returns the path of the written report file.
     """
-    summary_file = _find_latest_summary(target_slug)
+    load_config(path)
+    summary_file = _find_latest_summary(target_slug, path)
     with open(summary_file) as f:
         summary = json.load(f)
 
@@ -54,8 +54,7 @@ def run(target_name: str, target_slug: str) -> str:
     _require_llm_key(provider)
     report_text = llm_client.call(system_prompt, user_message, provider=provider)
 
-    out_file = f"reports/{target_slug}_security-report_{timestamp()}.md"
-    os.makedirs("reports", exist_ok=True)
+    out_file = report_path(path, f"{target_slug}_security-report_{timestamp()}.md")
     with open(out_file, "w") as f:
         f.write(f"# Security Report — {target_name}\n\n")
         f.write(f"_Generated from: `{summary_file}`_\n\n")
@@ -73,7 +72,7 @@ def run_with_triage(target_name: str, target_slug: str, path: str, top_n: int = 
 
     Returns the path of the written report file.
     """
-    summary_file = _find_latest_summary(target_slug)
+    summary_file = _find_latest_summary(target_slug, path)
 
     from agent.prioritizer import run_triage
     triage_result = run_triage(path, summary_file, top_n=top_n)
@@ -99,8 +98,7 @@ def run_with_triage(target_name: str, target_slug: str, path: str, top_n: int = 
     _require_llm_key(provider)
     report_text = llm_client.call(system_prompt, user_message, provider=provider)
 
-    out_file = f"reports/{target_slug}_security-report_{timestamp()}.md"
-    os.makedirs("reports", exist_ok=True)
+    out_file = report_path(path, f"{target_slug}_security-report_{timestamp()}.md")
     with open(out_file, "w") as f:
         f.write(f"# Security Report — {target_name}\n\n")
         f.write(f"_Generated from triage of: `{summary_file}`_\n\n")

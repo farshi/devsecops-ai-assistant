@@ -210,6 +210,9 @@ def _read_latest_json_report(reports_dir: str, slug: str = "vuln-demo") -> dict:
     """Find and parse the most recent triage JSON report."""
     pattern = os.path.join(reports_dir, f"{slug}_triage_*.json")
     matches = sorted(glob.glob(pattern))
+    if not matches:
+        pattern = os.path.join(VULNERABLE_APP_PATH, ".patchpilot", "reports", f"{slug}_triage_*.json")
+        matches = sorted(glob.glob(pattern))
     assert matches, f"No triage JSON report found matching {pattern}"
     with open(matches[-1]) as fh:
         return json.load(fh)
@@ -219,6 +222,9 @@ def _read_latest_md_report(reports_dir: str, slug: str = "vuln-demo") -> str:
     """Find and read the most recent triage markdown report."""
     pattern = os.path.join(reports_dir, f"{slug}_triage_*.md")
     matches = sorted(glob.glob(pattern))
+    if not matches:
+        pattern = os.path.join(VULNERABLE_APP_PATH, ".patchpilot", "reports", f"{slug}_triage_*.md")
+        matches = sorted(glob.glob(pattern))
     assert matches, f"No triage markdown report found matching {pattern}"
     with open(matches[-1]) as fh:
         return fh.read()
