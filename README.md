@@ -1,14 +1,14 @@
 # PatchPilot
 
-**CVE triage that speaks compliance.** Every finding is tagged with the specific
-NIST 800-53, CIS Benchmark, and PCI DSS controls it affects — so developers in
-regulated organisations fix what the audit actually cares about, not just what
-CVSS happens to rank highest.
+**CVE triage that speaks compliance.** PatchPilot turns noisy scanner output
+into a ranked remediation plan, with each finding tied back to the compliance
+controls it affects. Developers see what to fix first; security and risk teams
+see why it matters.
 
 ```
 Trivy scan
     → enrich with EPSS exploitability + CISA KEV
-    → map each finding to NIST / CIS / PCI controls
+    → map each finding to NIST / CIS / PCI / ISO / OWASP controls
     → deterministic scoring → top 5 actions
     → output: "fix X — breaks NIST SC-8 and PCI 4.2.1"
 ```
@@ -29,6 +29,32 @@ audit next quarter?"*
 
 PatchPilot is built to answer that — as an open-source CLI, in your CI pipeline,
 without buying a SaaS platform.
+
+## What PatchPilot does
+
+PatchPilot is a DevSecOps triage assistant, not another scanner. It sits between
+scanner output and engineering workflow:
+
+- normalises findings from tools such as Trivy, Semgrep, Checkov, Gitleaks, and
+  SARIF producers into one model
+- enriches findings with EPSS exploitability, CISA KEV status, fix availability,
+  ownership, deadlines, and project context
+- maps findings to NIST 800-53, CIS v8, PCI DSS 4.0, ISO 27001, and OWASP ASVS
+  controls
+- ranks what to fix first with a deterministic scoring model
+- produces developer-ready action items, audit trails, PR comments, digests, and
+  portfolio rollups
+- optionally uses AI to explain findings, generate plans, and summarise risk
+
+The core security decision path is deterministic and testable. AI is used around
+the workflow, not as an opaque risk engine.
+
+## What PatchPilot is not
+
+- **Not a scanner replacement.** It runs or consumes scanner output.
+- **Not an auto-fix bot.** The value is prioritisation, evidence, and workflow.
+- **Not a black-box AI gate.** Scoring and compliance mapping stay inspectable.
+- **Not a SaaS platform.** It is a CLI-first tool that can run in CI.
 
 ## Install
 
@@ -94,9 +120,9 @@ deeper analysis.
 
 ## Compliance mappings
 
-Mappings live as JSON files under `mappings/patterns/` and are editable, reviewable,
-and PR-able. Each pattern links a vulnerable package, config, or vulnerability
-class to the public compliance controls it affects.
+Mappings live as JSON files under `agent/mappings/patterns/` and are editable,
+reviewable, and PR-able. Each pattern links a vulnerable package, config, or
+vulnerability class to the public compliance controls it affects.
 
 Supported frameworks in v1:
 
@@ -106,16 +132,27 @@ Supported frameworks in v1:
 | CIS Controls v8 / Benchmarks   | cisecurity.org                                  |
 | PCI DSS 4.0                    | pcisecuritystandards.org                        |
 | ISO/IEC 27001:2022 Annex A     | iso.org (control IDs only — non-copyrightable)  |
+| OWASP ASVS                     | owasp.org                                       |
 
-See [`mappings/README.md`](mappings/README.md) for schema, examples, and how to
-contribute new mappings.
+See [`agent/mappings/README.md`](agent/mappings/README.md) for schema, examples,
+and how to contribute new mappings.
 
 ## Commands
 
-| Command              | Purpose                                                     |
-|----------------------|-------------------------------------------------------------|
-| `patchpilot scan`    | Run Trivy, produce normalised `summary.json`                |
-| `patchpilot triage`  | Full pipeline: scan → enrich → map to controls → rank       |
+| Command                 | Purpose                                                     |
+|-------------------------|-------------------------------------------------------------|
+| `patchpilot scan`       | Run security scanners and normalise findings                |
+| `patchpilot triage`     | Full pipeline: scan → enrich → map to controls → rank       |
+| `patchpilot report`     | Generate a security report from scan or triage output       |
+| `patchpilot plan`       | Generate a secure implementation plan for a task            |
+| `patchpilot review`     | Review code changes for security issues                    |
+| `patchpilot audit`      | Show triage decision history for compliance evidence        |
+| `patchpilot digest`     | Produce a weekly vulnerability triage digest                |
+| `patchpilot deadlines`  | Track remediation deadlines by severity                    |
+| `patchpilot portfolio`  | Aggregate security posture across multiple repositories     |
+| `patchpilot mappings`   | Inspect and validate compliance mappings                    |
+| `patchpilot assign`     | Assign a finding to a person or team                        |
+| `patchpilot close`      | Mark a finding as resolved/remediated                       |
 
 ## CI integration
 
@@ -125,7 +162,7 @@ Minimal example — GitHub Actions:
 - name: PatchPilot triage
   run: |
     pip install patchpilot
-    patchpilot triage --path . --framework pci-dss --fail-on any
+    patchpilot triage --path . --framework pci-dss --fail-on high
 ```
 
 Exit codes:
@@ -148,7 +185,7 @@ patchpilot/
       enrichment/kev.py        — CISA KEV catalog lookup
       enrichment/compliance.py — load mappings + attach controls to findings
       scoring/default.py       — deterministic weighted scorer
-  mappings/
+  agent/mappings/
     schema.json                — JSON Schema for mapping patterns
     patterns/*.json            — public compliance control mappings
     README.md                  — mapping contribution guide
@@ -158,8 +195,9 @@ patchpilot/
 ## Status
 
 Early open-source release. The core triage + compliance mapping pipeline is
-stable and covered by tests. Mapping coverage is deliberately narrow in v1 —
-contributions welcome.
+stable and covered by tests. Current release: `0.7.0`; current test collection:
+787 tests. Mapping coverage is deliberately narrow in v1 — contributions
+welcome.
 
 ## License
 
@@ -167,7 +205,6 @@ MIT — see [LICENSE](LICENSE).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) (coming soon). In short: for new compliance
-mappings, submit a PR adding a JSON file under `mappings/patterns/` that follows
-the schema. For scanner adapters or enrichment sources, open an issue first so
-we can discuss scope.
+For new compliance mappings, submit a PR adding a JSON file under
+`agent/mappings/patterns/` that follows the schema. For scanner adapters or
+enrichment sources, open an issue first so we can discuss scope.
